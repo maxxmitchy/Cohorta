@@ -3,8 +3,14 @@ import { CommunityDiscoveryReadModel } from '../readmodels/CommunityDiscoveryRea
 export interface IDiscoveryQueryRepository {
   /**
    * Retrieves the aggregated read models for the discovery feed.
-   * This method acts as a single, efficient query boundary to prevent N+1 issues
-   * that arise when fetching communities and then individually fetching stats/categories.
+   * 
+   * FUTURE PERSISTENCE REQUIREMENT:
+   * The production repository implementation (e.g. PostgreSQL/Firebase) MUST be 
+   * responsible for efficiently assembling this read model.
+   * 
+   * Do not fetch core entities and then execute N+1 queries to retrieve metrics, 
+   * plans, or categories. This should be a single database query (e.g. via SQL JOINS)
+   * or a direct read from a pre-calculated index.
    */
   getDiscoveryFeed(): Promise<CommunityDiscoveryReadModel[]>;
 }

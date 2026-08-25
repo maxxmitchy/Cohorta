@@ -1,6 +1,7 @@
 import { IDiscoveryQueryRepository } from '../../../core/repositories/IDiscoveryQueryRepository';
 import { CommunityDiscoveryReadModel } from '../../../core/readmodels/CommunityDiscoveryReadModel';
 import { mockCommunities, mockCategories, mockMetrics, mockPlans } from './mockData';
+import { determineDisplayPricing } from './pricingHelper';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -15,21 +16,7 @@ export class MockDiscoveryQueryRepository implements IDiscoveryQueryRepository {
       const stats = mockMetrics[community.id];
       const plans = mockPlans.filter(p => p.communityId === community.id);
       
-      // Determine base pricing display
-      let lowestPrice = -1;
-      let lowestCurrency = 'USD';
-      let lowestInterval: 'month' | 'year' | 'one_time' | undefined = undefined;
-      let hasFree = false;
-
-      plans.forEach(plan => {
-        if (plan.type === 'free') {
-          hasFree = true;
-        } else if (lowestPrice === -1 || plan.priceAmount < lowestPrice) {
-          lowestPrice = plan.priceAmount;
-          lowestCurrency = plan.priceCurrency;
-          lowestInterval = plan.interval as 'month' | 'year' | 'one_time';
-        }
-      });
+      const displayPricing = determineDisplayPricing(plans);
 
       return {
         id: community.id,
@@ -42,12 +29,7 @@ export class MockDiscoveryQueryRepository implements IDiscoveryQueryRepository {
         weeklyGrowthPercentage: stats?.weeklyGrowthPercentage || 0,
         rating: stats?.rating || 0,
         currentTopic: community.currentTopic,
-        pricing: {
-          type: hasFree ? 'free' : 'paid',
-          amount: lowestPrice > -1 && !hasFree ? lowestPrice : undefined,
-          currency: lowestPrice > -1 && !hasFree ? lowestCurrency : undefined,
-          interval: lowestPrice > -1 && !hasFree ? lowestInterval : undefined,
-        },
+        pricing: displayPricing,
         createdAt: community.createdAt,
       };
     });

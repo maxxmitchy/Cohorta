@@ -1,7 +1,7 @@
-import { Category } from '../../core/domain/category';
-import { Community } from '../../core/domain/community';
-import { CommunityStats } from '../../core/domain/metrics';
-import { MembershipPlan } from '../../core/domain/membership';
+import { Category } from '../../../core/domain/category';
+import { Community } from '../../../core/domain/community';
+import { CommunityStats } from '../../../core/domain/metrics';
+import { MembershipPlan } from '../../../core/domain/membership';
 
 export const mockCategories: Category[] = [
   { id: 'c1', name: 'AI & Automation', slug: 'ai-automation' },

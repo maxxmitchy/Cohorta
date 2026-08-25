@@ -4,8 +4,15 @@ import { RankingService } from '../../core/services/RankingService';
 import { MockDiscoveryQueryRepository } from '../../infrastructure/db/mock/MockDiscoveryQueryRepository';
 
 /**
- * ServiceRegistry acts as our Composition Root.
- * It instantiates and wires together the infrastructure and service layers.
+ * ServiceRegistry acts as our temporary Composition Root.
+ * 
+ * IMPORTANT ARCHITECTURAL RULE:
+ * UI components must NEVER instantiate repositories, database clients, payment clients,
+ * Telegram clients, or AI clients.
+ * 
+ * Note: In a production environment, infrastructure composition should occur
+ * strictly outside the UI layer (e.g. at the server entry point or via a robust DI container),
+ * not at module scope inside a React context file.
  */
 export interface ServiceRegistry {
   discoveryService: DiscoveryService;
