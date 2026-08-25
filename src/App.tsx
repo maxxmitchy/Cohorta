@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Navbar from './components/layout/Navbar';
-import Home from './pages/Home';
-import CommunityDetail from './pages/CommunityDetail';
-import Dashboard from './pages/Dashboard';
+import Navbar from './ui/components/layout/Navbar';
+import Home from './ui/pages/Home';
+import CommunityDetail from './ui/pages/CommunityDetail';
+import Dashboard from './ui/pages/Dashboard';
 
 export default function App() {
   return (

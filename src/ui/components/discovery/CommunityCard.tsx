@@ -1,13 +1,12 @@
 import { Users, Flame, TrendingUp, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Community, Category } from '../../lib/db/schema';
+import { CommunityDiscoveryDTO } from '../../../core/dto/CommunityDiscoveryDTO';
 
 interface CommunityCardProps {
-  community: Community;
-  category?: Category;
+  community: CommunityDiscoveryDTO;
 }
 
-export default function CommunityCard({ community, category }: CommunityCardProps) {
+export default function CommunityCard({ community }: CommunityCardProps) {
   return (
     <Link 
       to={`/c/${community.id}`}
@@ -17,7 +16,7 @@ export default function CommunityCard({ community, category }: CommunityCardProp
         <div>
           <h3 className="text-xl font-bold tracking-tight text-neutral-900">{community.name}</h3>
           <p className="mt-1 text-sm font-medium text-neutral-500">
-            {category?.name || community.categoryId} &bull; {community.skillLevel}
+            {community.categoryName} &bull; {community.skillLevel}
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-900">
@@ -70,7 +69,7 @@ export default function CommunityCard({ community, category }: CommunityCardProp
           </span>
         </div>
         <div className="flex h-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white transition-transform group-hover:scale-105">
-          View
+          {community.lowestPriceMonthly === 0 ? 'Free' : `$${community.lowestPriceMonthly}/mo`}
         </div>
       </div>
     </Link>

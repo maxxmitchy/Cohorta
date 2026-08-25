@@ -1,44 +1,48 @@
-import { useEffect, useState } from 'react';
-import { Flame, TrendingUp, Sparkles, Clock, Loader2 } from 'lucide-react';
-import { api } from '../lib/db/api';
-import { Category, Community } from '../lib/db/schema';
+import { useEffect, useState, useMemo } from 'react';
+import { Flame, TrendingUp, Sparkles, Clock, Loader2, AlertCircle } from 'lucide-react';
+import { DiscoveryService } from '../../core/services/DiscoveryService';
+import { RankingService, SortCriteria } from '../../core/services/RankingService';
+import { MockCommunityRepository } from '../../infrastructure/db/mock/MockCommunityRepository';
+import { CommunityDiscoveryDTO } from '../../core/dto/CommunityDiscoveryDTO';
 import CommunityCard from '../components/discovery/CommunityCard';
-import { cn } from '../lib/utils';
-
-type SortTab = 'trending' | 'active' | 'new' | 'growing';
+import { cn } from '../../lib/utils';
 
 export default function Home() {
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [communities, setCommunities] = useState<CommunityDiscoveryDTO[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<SortTab>('trending');
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<SortCriteria>('trending');
+
+  // Dependency injection setup (temporary until a true DI container is used)
+  const discoveryService = useMemo(() => {
+    const repo = new MockCommunityRepository();
+    const ranking = new RankingService();
+    return new DiscoveryService(repo, ranking);
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function loadData() {
       setIsLoading(true);
+      setError(null);
       try {
-        const [fetchedCategories, fetchedCommunities] = await Promise.all([
-          api.getCategories(),
-          activeTab === 'trending' ? api.getTrendingCommunities() : api.getCommunities()
-        ]);
-        setCategories(fetchedCategories);
-        
-        // Simple mock sorting based on activeTab
-        let sorted = [...fetchedCommunities];
-        if (activeTab === 'active') sorted = sorted.sort((a, b) => b.activeToday - a.activeToday);
-        if (activeTab === 'growing') sorted = sorted.sort((a, b) => b.weeklyGrowthPercentage - a.weeklyGrowthPercentage);
-        if (activeTab === 'new') sorted = sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        
-        setCommunities(sorted);
-      } catch (error) {
-        console.error("Failed to fetch discovery data", error);
+        const feed = await discoveryService.getDiscoveryFeed(activeTab);
+        if (isMounted) setCommunities(feed);
+      } catch (err) {
+        if (isMounted) setError("Failed to load communities. Please try again later.");
+        console.error("Discovery Feed Error:", err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     }
 
     loadData();
-  }, [activeTab]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, discoveryService]);
 
   const tabs = [
     { id: 'trending', label: 'Trending', icon: Flame },
@@ -67,12 +71,12 @@ export default function Home() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as SortTab)}
+                onClick={() => setActiveTab(tab.id as SortCriteria)}
                 className={cn(
                   "flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
                   isActive 
                     ? "bg-neutral-900 text-white" 
-                    : "bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                    : "bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 shadow-sm border border-neutral-200"
                 )}
               >
                 <Icon className={cn("h-4 w-4", isActive ? "text-white" : "text-neutral-400")} />
@@ -82,10 +86,19 @@ export default function Home() {
           })}
         </div>
 
-        {/* Discovery Feed Grid */}
+        {/* State Handling (Loading, Error, Empty, Success) */}
         {isLoading ? (
           <div className="flex h-64 items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+          </div>
+        ) : error ? (
+          <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-red-200 bg-red-50 text-red-500">
+            <AlertCircle className="h-8 w-8" />
+            <p className="font-medium">{error}</p>
+          </div>
+        ) : communities.length === 0 ? (
+          <div className="flex h-64 items-center justify-center rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50 text-neutral-500">
+            <p>No communities found.</p>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -93,7 +106,6 @@ export default function Home() {
               <CommunityCard 
                 key={community.id} 
                 community={community} 
-                category={categories.find(c => c.id === community.categoryId)}
               />
             ))}
           </div>
