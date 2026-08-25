@@ -1,0 +1,6 @@
+{
+  "name": "Cohorta",
+  "description": "An intelligent learning network platform powered by AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
