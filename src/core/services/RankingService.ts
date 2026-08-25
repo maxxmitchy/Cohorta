@@ -1,14 +1,50 @@
-import { CommunityDiscoveryDTO } from '../dto/CommunityDiscoveryDTO';
+import { CommunityDiscoveryReadModel } from '../readmodels/CommunityDiscoveryReadModel';
 
 export type SortCriteria = 'trending' | 'active' | 'new' | 'growing';
 
+/**
+ * Interface for ranking strategies. This allows the ranking algorithm
+ * to evolve independently of the core service.
+ */
+export interface IRankingStrategy {
+  calculateScore(community: CommunityDiscoveryReadModel): number;
+}
+
+/**
+ * PROVISIONAL RANKING MODEL
+ * 
+ * This is a temporary algorithm to validate the MVP.
+ * It uses a simple weighted sum of weekly growth and active users, multiplied by a rating factor.
+ * 
+ * Production Ranking System Requirements (Future):
+ * - Growth velocity (acceleration of new members over a sliding window)
+ * - Engagement velocity (messages/events relative to community size)
+ * - Learner retention (30-day cohort survival rate)
+ * - Learner satisfaction (weighted NLP on reviews, not just 1-5 stars)
+ * - Recent activity freshness (decay factor for older communities)
+ * - Mentor utilization rate
+ */
+export class ProvisionalTrendingStrategy implements IRankingStrategy {
+  public calculateScore(community: CommunityDiscoveryReadModel): number {
+    const growthWeight = community.weeklyGrowthPercentage * 2;
+    const activityWeight = community.activeToday * 0.5;
+    const ratingMultiplier = community.rating > 0 ? (community.rating / 5) : 0.5;
+    
+    return (growthWeight + activityWeight) * ratingMultiplier;
+  }
+}
+
 export class RankingService {
+  constructor(
+    private readonly trendingStrategy: IRankingStrategy = new ProvisionalTrendingStrategy()
+  ) {}
+
   /**
    * Sorts a list of communities based on the specified criteria.
-   * In a production environment with millions of rows, this logic would 
-   * live in the database query or a dedicated search index (e.g., Elasticsearch/Redis).
+   * Note: In production with large datasets, sorting must occur at the persistence/search-index
+   * layer (e.g. Elasticsearch/Redis), not in-memory on the application server.
    */
-  public sortCommunities(communities: CommunityDiscoveryDTO[], criteria: SortCriteria): CommunityDiscoveryDTO[] {
+  public sortCommunities(communities: CommunityDiscoveryReadModel[], criteria: SortCriteria): CommunityDiscoveryReadModel[] {
     const sorted = [...communities];
 
     switch (criteria) {
@@ -19,19 +55,9 @@ export class RankingService {
       case 'new':
         return sorted.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       case 'trending':
-        // A composite score of growth, recent activity, and rating.
-        return sorted.sort((a, b) => this.calculateTrendingScore(b) - this.calculateTrendingScore(a));
+        return sorted.sort((a, b) => this.trendingStrategy.calculateScore(b) - this.trendingStrategy.calculateScore(a));
       default:
         return sorted;
     }
-  }
-
-  private calculateTrendingScore(community: CommunityDiscoveryDTO): number {
-    // Arbitrary weighting for MVP: Growth is king, followed by raw active users.
-    const growthWeight = community.weeklyGrowthPercentage * 2;
-    const activityWeight = community.activeToday * 0.5;
-    const ratingMultiplier = community.rating > 0 ? (community.rating / 5) : 0.5;
-    
-    return (growthWeight + activityWeight) * ratingMultiplier;
   }
 }

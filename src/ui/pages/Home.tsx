@@ -1,24 +1,18 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Flame, TrendingUp, Sparkles, Clock, Loader2, AlertCircle } from 'lucide-react';
-import { DiscoveryService } from '../../core/services/DiscoveryService';
-import { RankingService, SortCriteria } from '../../core/services/RankingService';
-import { MockCommunityRepository } from '../../infrastructure/db/mock/MockCommunityRepository';
-import { CommunityDiscoveryDTO } from '../../core/dto/CommunityDiscoveryDTO';
+import { SortCriteria } from '../../core/services/RankingService';
+import { CommunityDiscoveryReadModel } from '../../core/readmodels/CommunityDiscoveryReadModel';
 import CommunityCard from '../components/discovery/CommunityCard';
 import { cn } from '../../lib/utils';
+import { useServices } from '../context/ServiceContext';
 
 export default function Home() {
-  const [communities, setCommunities] = useState<CommunityDiscoveryDTO[]>([]);
+  const [communities, setCommunities] = useState<CommunityDiscoveryReadModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SortCriteria>('trending');
 
-  // Dependency injection setup (temporary until a true DI container is used)
-  const discoveryService = useMemo(() => {
-    const repo = new MockCommunityRepository();
-    const ranking = new RankingService();
-    return new DiscoveryService(repo, ranking);
-  }, []);
+  const { discoveryService } = useServices();
 
   useEffect(() => {
     let isMounted = true;

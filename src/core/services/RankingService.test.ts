@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { RankingService } from './RankingService';
-import { CommunityDiscoveryDTO } from '../dto/CommunityDiscoveryDTO';
+import { RankingService, ProvisionalTrendingStrategy } from './RankingService';
+import { CommunityDiscoveryReadModel } from '../readmodels/CommunityDiscoveryReadModel';
 
 describe('RankingService', () => {
-  const mockCommunities: CommunityDiscoveryDTO[] = [
+  const mockCommunities: CommunityDiscoveryReadModel[] = [
     {
       id: '1',
       name: 'High Growth',
@@ -15,7 +15,7 @@ describe('RankingService', () => {
       weeklyGrowthPercentage: 100,
       rating: 5,
       currentTopic: '',
-      lowestPriceMonthly: 0,
+      pricing: { type: 'free' },
       createdAt: new Date('2024-01-01'),
     },
     {
@@ -29,12 +29,12 @@ describe('RankingService', () => {
       weeklyGrowthPercentage: 5,
       rating: 4,
       currentTopic: '',
-      lowestPriceMonthly: 0,
+      pricing: { type: 'free' },
       createdAt: new Date('2024-02-01'),
     }
   ];
 
-  const rankingService = new RankingService();
+  const rankingService = new RankingService(new ProvisionalTrendingStrategy());
 
   it('sorts by active today correctly', () => {
     const result = rankingService.sortCommunities(mockCommunities, 'active');

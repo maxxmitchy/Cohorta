@@ -1,5 +1,6 @@
-import { Category, Community } from '../../core/domain/community';
-import { CommunityMetrics } from '../../core/domain/metrics';
+import { Category } from '../../core/domain/category';
+import { Community } from '../../core/domain/community';
+import { CommunityStats } from '../../core/domain/metrics';
 import { MembershipPlan } from '../../core/domain/membership';
 
 export const mockCategories: Category[] = [
@@ -17,6 +18,7 @@ export const mockCommunities: Community[] = [
     description: 'Learn to build real-world AI agents and automate your business using n8n, OpenAI, and Webhooks. We build a new project every week.',
     skillLevel: 'Beginner',
     status: 'active',
+    currentTopic: 'Building AI Agents with n8n',
     tags: ['n8n', 'OpenAI', 'Agents'],
     createdAt: new Date('2023-10-01T00:00:00Z'),
     updatedAt: new Date('2024-01-01T00:00:00Z'),
@@ -29,6 +31,7 @@ export const mockCommunities: Community[] = [
     description: 'A cohort of developers shipping a new micro-startup every month. Next.js, Tailwind, and Supabase focused.',
     skillLevel: 'Intermediate',
     status: 'active',
+    currentTopic: 'Database Architecture & Row Level Security',
     tags: ['Next.js', 'React', 'Supabase'],
     createdAt: new Date('2023-11-15T00:00:00Z'),
     updatedAt: new Date('2024-01-01T00:00:00Z'),
@@ -41,13 +44,14 @@ export const mockCommunities: Community[] = [
     description: 'Master AI-assisted coding. We share prompts, rules, and workflows to 10x your shipping speed.',
     skillLevel: 'All Levels',
     status: 'active',
+    currentTopic: 'Writing perfect .cursorrules files',
     tags: ['Cursor', 'Prompting', 'Efficiency'],
     createdAt: new Date('2024-01-05T00:00:00Z'),
     updatedAt: new Date('2024-02-01T00:00:00Z'),
   }
 ];
 
-export const mockMetrics: Record<string, CommunityMetrics> = {
+export const mockMetrics: Record<string, CommunityStats> = {
   'com_1': {
     communityId: 'com_1',
     memberCount: 1847,
@@ -55,7 +59,6 @@ export const mockMetrics: Record<string, CommunityMetrics> = {
     weeklyGrowthPercentage: 24,
     rating: 4.8,
     reviewCount: 142,
-    currentTopic: 'Building AI Agents with n8n',
     lastCalculatedAt: new Date(),
   },
   'com_2': {
@@ -65,7 +68,6 @@ export const mockMetrics: Record<string, CommunityMetrics> = {
     weeklyGrowthPercentage: 12,
     rating: 4.9,
     reviewCount: 85,
-    currentTopic: 'Database Architecture & Row Level Security',
     lastCalculatedAt: new Date(),
   },
   'com_3': {
@@ -75,7 +77,6 @@ export const mockMetrics: Record<string, CommunityMetrics> = {
     weeklyGrowthPercentage: 45,
     rating: 4.7,
     reviewCount: 320,
-    currentTopic: 'Writing perfect .cursorrules files',
     lastCalculatedAt: new Date(),
   }
 };

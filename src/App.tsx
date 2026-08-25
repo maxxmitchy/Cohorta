@@ -3,20 +3,23 @@ import Navbar from './ui/components/layout/Navbar';
 import Home from './ui/pages/Home';
 import CommunityDetail from './ui/pages/CommunityDetail';
 import Dashboard from './ui/pages/Dashboard';
+import { ServiceProvider } from './ui/context/ServiceContext';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans selection:bg-neutral-200">
-        <Navbar />
-        <main>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/c/:communityId" element={<CommunityDetail />} />
-            <Route path="/dashboard/*" element={<Dashboard />} />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+    <ServiceProvider>
+      <BrowserRouter>
+        <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans selection:bg-neutral-200">
+          <Navbar />
+          <main>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/c/:communityId" element={<CommunityDetail />} />
+              <Route path="/dashboard/*" element={<Dashboard />} />
+            </Routes>
+          </main>
+        </div>
+      </BrowserRouter>
+    </ServiceProvider>
   );
 }

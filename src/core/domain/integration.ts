@@ -6,6 +6,12 @@ export interface CommunityIntegration {
   providerType: IntegrationProviderType;
   providerCommunityId: string; // e.g., the Telegram Chat ID
   isActive: boolean;
-  metadata: Record<string, unknown>; // Flexible storage for provider-specific config
+  /**
+   * IMPORTANT: metadata must not be an untyped dumping ground in production.
+   * A structural validation boundary (e.g., Zod schemas) must be established
+   * at the provider implementation level before saving/retrieving to ensure
+   * type safety for provider-specific config.
+   */
+  metadata: Record<string, unknown>;
   createdAt: Date;
 }

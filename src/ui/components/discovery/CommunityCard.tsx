@@ -1,9 +1,23 @@
 import { Users, Flame, TrendingUp, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { CommunityDiscoveryDTO } from '../../../core/dto/CommunityDiscoveryDTO';
+import { CommunityDiscoveryReadModel, PricingDisplay } from '../../../core/readmodels/CommunityDiscoveryReadModel';
 
 interface CommunityCardProps {
-  community: CommunityDiscoveryDTO;
+  community: CommunityDiscoveryReadModel;
+}
+
+function formatPricing(pricing: PricingDisplay): string {
+  if (pricing.type === 'free') return 'Free';
+  if (pricing.amount == null || !pricing.currency) return 'Paid';
+  
+  const formatted = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: pricing.currency,
+    minimumFractionDigits: 0,
+  }).format(pricing.amount / 100);
+
+  const intervalSuffix = pricing.interval === 'month' ? '/mo' : pricing.interval === 'year' ? '/yr' : '';
+  return `${formatted}${intervalSuffix}`;
 }
 
 export default function CommunityCard({ community }: CommunityCardProps) {
@@ -65,11 +79,11 @@ export default function CommunityCard({ community }: CommunityCardProps) {
             Current Topic
           </span>
           <span className="block truncate text-sm font-semibold text-neutral-900">
-            {community.currentTopic}
+            {community.currentTopic || 'General Discussion'}
           </span>
         </div>
         <div className="flex h-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white transition-transform group-hover:scale-105">
-          {community.lowestPriceMonthly === 0 ? 'Free' : `$${community.lowestPriceMonthly}/mo`}
+          {formatPricing(community.pricing)}
         </div>
       </div>
     </Link>
