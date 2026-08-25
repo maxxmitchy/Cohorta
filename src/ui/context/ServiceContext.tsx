@@ -2,8 +2,11 @@ import { createContext, useContext, ReactNode } from 'react';
 import { DiscoveryService } from '../../core/services/DiscoveryService';
 import { RankingService } from '../../core/services/RankingService';
 import { CommunityDetailService } from '../../core/services/CommunityDetailService';
+import { MockAuthService } from '../../infrastructure/db/mock/MockAuthService';
+import { MembershipService } from '../../core/services/MembershipService';
 import { MockDiscoveryQueryRepository } from '../../infrastructure/db/mock/MockDiscoveryQueryRepository';
 import { MockCommunityDetailQueryRepository } from '../../infrastructure/db/mock/MockCommunityDetailQueryRepository';
+import { MockMembershipRepository } from '../../infrastructure/db/mock/MockMembershipRepository';
 
 /**
  * ServiceRegistry acts as our temporary Composition Root.
@@ -19,6 +22,8 @@ import { MockCommunityDetailQueryRepository } from '../../infrastructure/db/mock
 export interface ServiceRegistry {
   discoveryService: DiscoveryService;
   communityDetailService: CommunityDetailService;
+  authService: MockAuthService;
+  membershipService: MembershipService;
 }
 
 // Temporary manual DI wiring. 
@@ -30,9 +35,15 @@ const discoveryService = new DiscoveryService(discoveryQueryRepo, rankingService
 const detailQueryRepo = new MockCommunityDetailQueryRepository();
 const communityDetailService = new CommunityDetailService(detailQueryRepo);
 
+const mockAuthService = new MockAuthService();
+const mockMembershipRepo = new MockMembershipRepository();
+const membershipService = new MembershipService(mockMembershipRepo, mockMembershipRepo);
+
 const defaultRegistry: ServiceRegistry = {
   discoveryService,
   communityDetailService,
+  authService: mockAuthService,
+  membershipService,
 };
 
 

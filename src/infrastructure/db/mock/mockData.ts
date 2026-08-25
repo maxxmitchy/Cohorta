@@ -1,7 +1,8 @@
+import { LearningProgress } from '../../../core/domain/progress';
 import { Category } from '../../../core/domain/category';
 import { Community } from '../../../core/domain/community';
 import { CommunityStats } from '../../../core/domain/metrics';
-import { MembershipPlan } from '../../../core/domain/membership';
+import { MembershipPlan, Membership } from '../../../core/domain/membership';
 import { RoadmapItem } from '../../../core/domain/learning';
 import { User } from '../../../core/domain/user';
 
@@ -36,6 +37,38 @@ export const mockUsers: User[] = [
     name: 'YC Founder Group',
     avatarUrl: 'https://i.pravatar.cc/150?u=founder',
     role: 'creator',
+    createdAt: new Date(),
+  },
+  {
+    id: 'u_visitor',
+    email: 'visitor@example.com',
+    name: 'Victor Visitor',
+    avatarUrl: 'https://i.pravatar.cc/150?u=visitor',
+    role: 'learner',
+    createdAt: new Date(),
+  },
+  {
+    id: 'u_member_partial',
+    email: 'partial@example.com',
+    name: 'Pamela Partial',
+    avatarUrl: 'https://i.pravatar.cc/150?u=partial',
+    role: 'learner',
+    createdAt: new Date(),
+  },
+  {
+    id: 'u_member_complete',
+    email: 'complete@example.com',
+    name: 'Colin Complete',
+    avatarUrl: 'https://i.pravatar.cc/150?u=complete',
+    role: 'learner',
+    createdAt: new Date(),
+  },
+  {
+    id: 'u_member_expired',
+    email: 'expired@example.com',
+    name: 'Evan Expired',
+    avatarUrl: 'https://i.pravatar.cc/150?u=expired',
+    role: 'learner',
     createdAt: new Date(),
   }
 ];
@@ -239,4 +272,33 @@ export const mockRoadmapItems: RoadmapItem[] = [
   // Euro Startup Collective Roadmap
   { id: 'r4_1', communityId: 'com_4', title: 'Finding PMF', description: 'Validating the initial B2B problem', orderIndex: 1, status: 'completed', createdAt: now, updatedAt: now },
   { id: 'r4_2', communityId: 'com_4', title: 'Enterprise Pricing Tiers', description: 'Moving upmarket and structuring plans', orderIndex: 2, status: 'current', createdAt: now, updatedAt: now },
+];
+
+
+
+
+export const mockMemberships: Membership[] = [
+  { id: 'm1', userId: 'u_member_partial', communityId: 'com_1', planId: 'plan_1', role: 'member', joinedAt: now, status: 'active' },
+  { id: 'm2', userId: 'u_member_complete', communityId: 'com_1', planId: 'plan_1', role: 'member', joinedAt: now, status: 'active' },
+  { id: 'm3', userId: 'u_member_expired', communityId: 'com_1', planId: 'plan_1', role: 'member', joinedAt: now, status: 'past_due' },
+];
+
+export const mockProgress: LearningProgress[] = [
+  // Partial Member Progress (in com_1)
+  { userId: 'u_member_partial', communityId: 'com_1', roadmapItemId: 'r1_1', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_partial', communityId: 'com_1', roadmapItemId: 'r1_2', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_partial', communityId: 'com_1', roadmapItemId: 'r1_3', status: 'current', updatedAt: now },
+  { userId: 'u_member_partial', communityId: 'com_1', roadmapItemId: 'r1_4', status: 'locked', updatedAt: now },
+  { userId: 'u_member_partial', communityId: 'com_1', roadmapItemId: 'r1_5', status: 'locked', updatedAt: now },
+  { userId: 'u_member_partial', communityId: 'com_1', roadmapItemId: 'r1_6', status: 'locked', updatedAt: now },
+  { userId: 'u_member_partial', communityId: 'com_1', roadmapItemId: 'r1_7', status: 'locked', updatedAt: now },
+  
+  // Complete Member Progress (in com_1)
+  { userId: 'u_member_complete', communityId: 'com_1', roadmapItemId: 'r1_1', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_complete', communityId: 'com_1', roadmapItemId: 'r1_2', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_complete', communityId: 'com_1', roadmapItemId: 'r1_3', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_complete', communityId: 'com_1', roadmapItemId: 'r1_4', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_complete', communityId: 'com_1', roadmapItemId: 'r1_5', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_complete', communityId: 'com_1', roadmapItemId: 'r1_6', status: 'completed', updatedAt: now, completedAt: now },
+  { userId: 'u_member_complete', communityId: 'com_1', roadmapItemId: 'r1_7', status: 'completed', updatedAt: now, completedAt: now },
 ];

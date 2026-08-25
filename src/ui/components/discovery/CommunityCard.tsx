@@ -1,23 +1,10 @@
 import { Users, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { CommunityDiscoveryReadModel, PricingDisplay } from '../../../core/readmodels/CommunityDiscoveryReadModel';
+import { CommunityDiscoveryReadModel } from '../../../core/readmodels/CommunityDiscoveryReadModel';
+import { formatPricing } from '../../utils/formatPricing';
 
 interface CommunityCardProps {
   community: CommunityDiscoveryReadModel;
-}
-
-function formatPricing(pricing: PricingDisplay): string {
-  if (pricing.type === 'free') return 'Free';
-  if (pricing.amount == null || !pricing.currency) return 'Paid';
-  
-  const formatted = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: pricing.currency,
-    minimumFractionDigits: 0,
-  }).format(pricing.amount / 100);
-
-  const intervalSuffix = pricing.interval === 'month' ? '/mo' : pricing.interval === 'year' ? '/yr' : '';
-  return `${formatted}${intervalSuffix}`;
 }
 
 export default function CommunityCard({ community }: CommunityCardProps) {

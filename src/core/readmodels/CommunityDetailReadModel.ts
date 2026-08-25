@@ -23,7 +23,10 @@ export interface CommunityDetailReadModel {
   creatorRole: string;
   
   roadmap: CommunityDetailRoadmapItem[];
-  pricing: PricingDisplay[];
+  
+  // Clean pricing presentation abstraction for the UI
+  primaryPricing?: PricingDisplay;
+  alternativePricing: PricingDisplay[];
   hasFreeEntry: boolean;
   
   integrationStatus: 'connected' | 'coming_soon' | 'not_connected';

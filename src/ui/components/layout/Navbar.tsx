@@ -1,7 +1,28 @@
 import { Link } from 'react-router-dom';
-import { Search, Compass, LogIn } from 'lucide-react';
+import { Search, Compass, LogIn, ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useServices } from '../../context/ServiceContext';
+import { Session } from '../../../core/domain/session';
+import { mockUsers } from '../../../infrastructure/db/mock/mockData';
 
 export default function Navbar() {
+  const { authService } = useServices();
+  const [session, setSession] = useState<Session>({ state: 'unauthenticated' });
+  const [showDevMenu, setShowDevMenu] = useState(false);
+
+  useEffect(() => {
+    authService.getCurrentSession().then(setSession);
+  }, [authService]);
+
+  const handleSwitchUser = async (userId: string | null) => {
+    await authService.setMockUser(userId);
+    const newSession = await authService.getCurrentSession();
+    setSession(newSession);
+    setShowDevMenu(false);
+    // Hard reload to reset all component states and reflect new auth
+    window.location.reload(); 
+  };
+
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-neutral-200 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -14,7 +35,9 @@ export default function Navbar() {
           </Link>
           <div className="hidden md:flex items-center gap-6">
             <Link to="/" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">Explore</Link>
-            <Link to="/" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">Trending</Link>
+            {session.state === 'authenticated' && (
+              <span className="text-sm font-medium text-neutral-600 hover:text-neutral-900 cursor-pointer">My Communities</span>
+            )}
           </div>
         </div>
         
@@ -27,10 +50,41 @@ export default function Navbar() {
               className="h-9 w-64 rounded-full border border-neutral-200 bg-neutral-50 pl-9 pr-4 text-sm focus:border-neutral-300 focus:outline-none focus:ring-0"
             />
           </div>
-          <button className="flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800">
-            <LogIn className="h-4 w-4" />
-            <span>Sign In</span>
-          </button>
+
+          {/* Dev Auth Switcher */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowDevMenu(!showDevMenu)}
+              className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              {session.state === 'authenticated' ? session.user?.name : 'Sign In'}
+              <ChevronDown className="h-4 w-4 text-neutral-400" />
+            </button>
+
+            {showDevMenu && (
+              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
+                <div className="mb-2 px-2 pb-2 text-xs font-bold text-neutral-400 border-b border-neutral-100 uppercase tracking-wider">
+                  Dev: Switch User
+                </div>
+                <button 
+                  onClick={() => handleSwitchUser(null)}
+                  className="w-full rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                >
+                  Unauthenticated (Visitor)
+                </button>
+                {mockUsers.filter(u => u.role === 'learner').map(user => (
+                  <button 
+                    key={user.id}
+                    onClick={() => handleSwitchUser(user.id)}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                  >
+                    {user.name} ({user.id.replace('u_member_', '').replace('u_visitor', 'visitor')})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     </nav>

@@ -36,6 +36,22 @@ export class MockCommunityDetailQueryRepository implements ICommunityDetailQuery
       currency: p.priceCurrency,
       interval: p.interval as 'month' | 'year' | 'lifetime' | undefined,
     }));
+    
+    // Select primary vs alternative
+    const hasFreeEntry = plans.some(p => p.type === 'free');
+    
+    // In our simplified mock logic, if it has free entry, primary is Free.
+    // Otherwise, primary is the displayPricing (which prefers monthly).
+    let primaryPricing: typeof displayPricing | undefined = undefined;
+    let alternativePricing = allPricingOptions;
+    
+    if (hasFreeEntry) {
+       primaryPricing = { type: 'free' };
+       alternativePricing = allPricingOptions.filter(p => p.type !== 'free');
+    } else if (allPricingOptions.length > 0) {
+       primaryPricing = displayPricing;
+       alternativePricing = allPricingOptions.filter(p => p !== primaryPricing && p.amount !== primaryPricing.amount);
+    }
 
     return {
       id: community.id,
@@ -49,8 +65,9 @@ export class MockCommunityDetailQueryRepository implements ICommunityDetailQuery
       creatorName: creator?.name || 'Unknown Creator',
       creatorRole: 'Community Leader',
       roadmap,
-      pricing: allPricingOptions, // Allow the UI to see all options for the join card
-      hasFreeEntry: plans.some(p => p.type === 'free'),
+      primaryPricing,
+      alternativePricing,
+      hasFreeEntry,
       integrationStatus: 'not_connected', // Mapped from missing domain for now, until real integration
       createdAt: community.createdAt,
     };
