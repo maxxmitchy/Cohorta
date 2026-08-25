@@ -1,26 +1,16 @@
 import { Link } from 'react-router-dom';
-import { Search, Compass, LogIn, ChevronDown } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useServices } from '../../context/ServiceContext';
-import { Session } from '../../../core/domain/session';
+import { Search, Compass, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 import { mockUsers } from '../../../infrastructure/db/mock/mockData';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Navbar() {
-  const { authService } = useServices();
-  const [session, setSession] = useState<Session>({ state: 'unauthenticated' });
+  const { session, setDevUser } = useAuth();
   const [showDevMenu, setShowDevMenu] = useState(false);
 
-  useEffect(() => {
-    authService.getCurrentSession().then(setSession);
-  }, [authService]);
-
   const handleSwitchUser = async (userId: string | null) => {
-    await authService.setMockUser(userId);
-    const newSession = await authService.getCurrentSession();
-    setSession(newSession);
+    await setDevUser(userId);
     setShowDevMenu(false);
-    // Hard reload to reset all component states and reflect new auth
-    window.location.reload(); 
   };
 
   return (

@@ -1,14 +1,50 @@
 import { Link } from 'react-router-dom';
-import { Users, Activity, CheckCircle2, Circle, Radio, HelpCircle, Shield, Zap } from 'lucide-react';
+import { Users, Activity, CheckCircle2, Circle, Radio, HelpCircle, Shield, Zap, Loader2 } from 'lucide-react';
 import { CommunityDetailReadModel } from '../../../core/readmodels/CommunityDetailReadModel';
 import { cn } from '../../../lib/utils';
 import { formatPricing } from '../../utils/formatPricing';
+import { useAuth } from '../../context/AuthContext';
+import { useServices } from '../../context/ServiceContext';
+import { useState } from 'react';
 
 interface Props {
   community: CommunityDetailReadModel;
+  onJoinSuccess?: () => void;
 }
 
-export function CommunityDetailVisitor({ community }: Props) {
+export function CommunityDetailVisitor({ community, onJoinSuccess }: Props) {
+  const { session } = useAuth();
+  const { membershipService, paymentService } = useServices();
+  const [isJoining, setIsJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleJoin = async (planId?: string, isPaid: boolean = false, amount: number = 0, currency: string = 'USD') => {
+    if (session.state !== 'authenticated' || !session.user) {
+      setError('Please sign in to join this community.');
+      return;
+    }
+
+    setIsJoining(true);
+    setError(null);
+
+    try {
+      if (isPaid) {
+        const paymentResult = await paymentService.processMockPayment(session.user.id, planId || 'paid', amount, currency);
+        if (!paymentResult.success) {
+          throw new Error(paymentResult.error || 'Payment failed.');
+        }
+      }
+
+      await membershipService.joinCommunity(session.user.id, community.id, planId);
+      if (onJoinSuccess) {
+        onJoinSuccess();
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while joining.');
+      setIsJoining(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
       {/* Left Column - Main Content */}
@@ -127,13 +163,27 @@ export function CommunityDetailVisitor({ community }: Props) {
           </ul>
 
           <div className="flex flex-col gap-4">
+            {error && (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-100">
+                {error}
+              </div>
+            )}
+            
             {community.hasFreeEntry ? (
-              <button className="flex h-14 w-full items-center justify-center rounded-xl bg-neutral-900 text-base font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98]">
-                Join for Free
+              <button 
+                onClick={() => handleJoin('free')}
+                disabled={isJoining}
+                className="flex h-14 w-full items-center justify-center rounded-xl bg-neutral-900 text-base font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100"
+              >
+                {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Join for Free'}
               </button>
             ) : community.primaryPricing ? (
-              <button className="flex h-14 w-full items-center justify-center rounded-xl bg-neutral-900 text-base font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98]">
-                Join for {formatPricing(community.primaryPricing)}
+              <button 
+                onClick={() => handleJoin('primary', true, community.primaryPricing?.amount || 0, community.primaryPricing?.currency || 'USD')}
+                disabled={isJoining}
+                className="flex h-14 w-full items-center justify-center rounded-xl bg-neutral-900 text-base font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100"
+              >
+                {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : `Join for ${formatPricing(community.primaryPricing)}`}
               </button>
             ) : (
               <button disabled className="flex h-14 w-full items-center justify-center rounded-xl bg-neutral-200 text-base font-bold text-neutral-500 cursor-not-allowed">

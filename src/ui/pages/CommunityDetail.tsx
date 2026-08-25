@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useServices } from '../context/ServiceContext';
+import { useAuth } from '../context/AuthContext';
 import { CommunityDetailReadModel } from '../../core/readmodels/CommunityDetailReadModel';
 import { MemberCommunityReadModel } from '../../core/readmodels/MemberCommunityReadModel';
 import { CommunityDetailVisitor } from './community/CommunityDetailVisitor';
@@ -9,41 +10,45 @@ import { CommunityDetailMember } from './community/CommunityDetailMember';
 
 export default function CommunityDetail() {
   const { communityId } = useParams();
-  const { communityDetailService, authService, membershipService } = useServices();
+  const { communityDetailService, membershipService } = useServices();
+  const { session } = useAuth();
   
   const [visitorData, setVisitorData] = useState<CommunityDetailReadModel | null>(null);
   const [memberData, setMemberData] = useState<MemberCommunityReadModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchDetail() {
-      if (!communityId) return;
-      setIsLoading(true);
-      try {
-        const session = await authService.getCurrentSession();
-        
-        if (session.state === 'authenticated' && session.user) {
-          // Check if they are a member
-          const memberView = await membershipService.getMemberCommunityView(session.user.id, communityId);
-          if (memberView) {
-            if (isMounted) setMemberData(memberView);
-            return;
-          }
+  const fetchDetail = useCallback(async () => {
+    if (!communityId) return;
+    setIsLoading(true);
+    try {
+      if (session.state === 'authenticated' && session.user) {
+        // Check if they are a member
+        const memberView = await membershipService.getMemberCommunityView(session.user.id, communityId);
+        if (memberView) {
+          setMemberData(memberView);
+          setIsLoading(false);
+          return;
         }
-        
-        // Fallback to visitor view
-        const data = await communityDetailService.getCommunityDetail(communityId);
-        if (isMounted) setVisitorData(data);
-      } catch (err) {
-        console.error("Failed to load community detail", err);
-      } finally {
-        if (isMounted) setIsLoading(false);
       }
+      
+      // Fallback to visitor view
+      setMemberData(null);
+      const data = await communityDetailService.getCommunityDetail(communityId);
+      setVisitorData(data);
+    } catch (err) {
+      console.error("Failed to load community detail", err);
+    } finally {
+      setIsLoading(false);
     }
+  }, [communityId, communityDetailService, membershipService, session]);
+
+  useEffect(() => {
     fetchDetail();
-    return () => { isMounted = false; };
-  }, [communityId, communityDetailService, authService, membershipService]);
+  }, [fetchDetail]);
+
+  const handleJoinSuccess = () => {
+    fetchDetail();
+  };
 
   if (isLoading) {
     return (
@@ -74,7 +79,7 @@ export default function CommunityDetail() {
       {memberData ? (
         <CommunityDetailMember community={memberData} />
       ) : (
-        <CommunityDetailVisitor community={visitorData!} />
+        <CommunityDetailVisitor community={visitorData!} onJoinSuccess={handleJoinSuccess} />
       )}
     </div>
   );

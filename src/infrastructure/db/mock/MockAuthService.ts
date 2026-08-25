@@ -21,7 +21,18 @@ export class MockAuthService implements IAuthService {
     };
   }
 
-  async setMockUser(userId: string | null): Promise<void> {
+  async signIn(userId: string): Promise<Session> {
     this.currentUserId = userId;
+    return this.getCurrentSession();
+  }
+
+  async signOut(): Promise<void> {
+    this.currentUserId = null;
+  }
+
+  // Dev-only helper, not part of IAuthService
+  async setMockUserForDevelopment(userId: string | null): Promise<Session> {
+    this.currentUserId = userId;
+    return this.getCurrentSession();
   }
 }

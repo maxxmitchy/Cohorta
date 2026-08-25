@@ -4,6 +4,8 @@ import { RankingService } from '../../core/services/RankingService';
 import { CommunityDetailService } from '../../core/services/CommunityDetailService';
 import { MockAuthService } from '../../infrastructure/db/mock/MockAuthService';
 import { MembershipService } from '../../core/services/MembershipService';
+import { IPaymentService } from '../../core/services/IPaymentService';
+import { MockPaymentService } from '../../infrastructure/db/mock/MockPaymentService';
 import { MockDiscoveryQueryRepository } from '../../infrastructure/db/mock/MockDiscoveryQueryRepository';
 import { MockCommunityDetailQueryRepository } from '../../infrastructure/db/mock/MockCommunityDetailQueryRepository';
 import { MockMembershipRepository } from '../../infrastructure/db/mock/MockMembershipRepository';
@@ -24,6 +26,7 @@ export interface ServiceRegistry {
   communityDetailService: CommunityDetailService;
   authService: MockAuthService;
   membershipService: MembershipService;
+  paymentService: IPaymentService;
 }
 
 // Temporary manual DI wiring. 
@@ -39,11 +42,14 @@ const mockAuthService = new MockAuthService();
 const mockMembershipRepo = new MockMembershipRepository();
 const membershipService = new MembershipService(mockMembershipRepo, mockMembershipRepo);
 
+const mockPaymentService = new MockPaymentService();
+
 const defaultRegistry: ServiceRegistry = {
   discoveryService,
   communityDetailService,
   authService: mockAuthService,
   membershipService,
+  paymentService: mockPaymentService,
 };
 
 

@@ -11,4 +11,9 @@ export interface IMembershipService {
    * Get the personalized Member view of a community.
    */
   getMemberCommunityView(userId: string, communityId: string): Promise<MemberCommunityReadModel | null>;
+  
+  /**
+   * Joins a community. Validates duplicate memberships and initializes progress.
+   */
+  joinCommunity(userId: string, communityId: string, planId?: string): Promise<void>;
 }

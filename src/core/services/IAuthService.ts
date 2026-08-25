@@ -2,12 +2,17 @@ import { Session } from '../domain/session';
 
 export interface IAuthService {
   /**
-   * Retrieves the current mock session state.
+   * Retrieves the current session state.
    */
   getCurrentSession(): Promise<Session>;
   
   /**
-   * Dev tool: Force a specific user ID for testing mock states.
+   * Signs in a user (mock abstraction).
    */
-  setMockUser(userId: string | null): Promise<void>;
+  signIn(userId: string): Promise<Session>;
+
+  /**
+   * Signs out the current user.
+   */
+  signOut(): Promise<void>;
 }

@@ -1,12 +1,21 @@
 import { Activity, CheckCircle2, Circle, Lock, PlayCircle, Sparkles } from 'lucide-react';
 import { MemberCommunityReadModel } from '../../../core/readmodels/MemberCommunityReadModel';
 import { cn } from '../../../lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface Props {
   community: MemberCommunityReadModel;
 }
 
 export function CommunityDetailMember({ community }: Props) {
+  const navigate = useNavigate();
+
+  const handleContinueLearning = () => {
+    if (community.nextAction) {
+      navigate(`/c/${community.communityId}/learn/${community.nextAction.roadmapItemId}`);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-12">
       {/* Member Header */}
@@ -26,7 +35,10 @@ export function CommunityDetailMember({ community }: Props) {
         </div>
         
         {community.nextAction && (
-          <button className="flex shrink-0 items-center gap-2 rounded-xl bg-neutral-900 px-6 py-4 text-sm font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98]">
+          <button 
+            onClick={handleContinueLearning}
+            className="flex shrink-0 items-center gap-2 rounded-xl bg-neutral-900 px-6 py-4 text-sm font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98]"
+          >
             <PlayCircle className="h-5 w-5" />
             Continue Learning
           </button>

@@ -2,6 +2,7 @@ import { IMembershipQueryRepository } from '../../../core/repositories/IMembersh
 import { IMembershipRepository } from '../../../core/repositories/IMembershipRepository';
 import { MemberCommunityReadModel } from '../../../core/readmodels/MemberCommunityReadModel';
 import { Membership } from '../../../core/domain/membership';
+import { LearningProgress } from '../../../core/domain/progress';
 import { mockCommunities, mockCategories, mockMetrics, mockRoadmapItems, mockMemberships, mockProgress } from './mockData';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -11,6 +12,24 @@ export class MockMembershipRepository implements IMembershipRepository, IMembers
   async getMembership(userId: string, communityId: string): Promise<Membership | null> {
     await delay(100);
     return mockMemberships.find(m => m.userId === userId && m.communityId === communityId) || null;
+  }
+
+  async createMembership(membership: Membership): Promise<void> {
+    await delay(100);
+    mockMemberships.push(membership);
+  }
+
+  async initializeProgress(progressItems: LearningProgress[]): Promise<void> {
+    await delay(100);
+    mockProgress.push(...progressItems);
+  }
+
+  async getRoadmapItemIds(communityId: string): Promise<string[]> {
+    await delay(50);
+    return mockRoadmapItems
+      .filter(r => r.communityId === communityId)
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map(r => r.id);
   }
 
   async getMemberCommunityView(userId: string, communityId: string): Promise<MemberCommunityReadModel | null> {
