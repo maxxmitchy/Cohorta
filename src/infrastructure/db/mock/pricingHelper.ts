@@ -62,6 +62,6 @@ export function determineDisplayPricing(plans: MembershipPlan[]): PricingDisplay
     type: 'paid',
     amount: lowestPricePlan.priceAmount,
     currency: lowestPricePlan.priceCurrency.toUpperCase(),
-    interval: lowestPricePlan.interval as 'month' | 'year' | 'one_time' | undefined
+    interval: lowestPricePlan.interval as 'month' | 'year' | 'lifetime' | undefined
   };
 }

@@ -46,13 +46,13 @@ export default function Home() {
   ] as const;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-      <div className="text-center max-w-3xl mx-auto mb-16">
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mb-12 max-w-3xl">
         <h1 className="text-5xl font-extrabold tracking-tight text-neutral-900 sm:text-6xl mb-6">
           Find your people.<br/>Learn your thing.
         </h1>
-        <p className="text-xl text-neutral-600">
-          Discover active, expert-led communities where people are actually learning and building together. Stop watching courses alone.
+        <p className="text-xl leading-relaxed text-neutral-600">
+          Join active, expert-led communities where people are actually building and learning together. Stop watching video courses alone.
         </p>
       </div>
 
@@ -67,10 +67,10 @@ export default function Home() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as SortCriteria)}
                 className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+                  "flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition-all",
                   isActive 
-                    ? "bg-neutral-900 text-white" 
-                    : "bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 shadow-sm border border-neutral-200"
+                    ? "bg-neutral-900 text-white shadow-md" 
+                    : "bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 shadow-sm border border-neutral-200/60"
                 )}
               >
                 <Icon className={cn("h-4 w-4", isActive ? "text-white" : "text-neutral-400")} />

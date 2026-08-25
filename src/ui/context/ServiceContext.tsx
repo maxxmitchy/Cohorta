@@ -1,7 +1,9 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { DiscoveryService } from '../../core/services/DiscoveryService';
 import { RankingService } from '../../core/services/RankingService';
+import { CommunityDetailService } from '../../core/services/CommunityDetailService';
 import { MockDiscoveryQueryRepository } from '../../infrastructure/db/mock/MockDiscoveryQueryRepository';
+import { MockCommunityDetailQueryRepository } from '../../infrastructure/db/mock/MockCommunityDetailQueryRepository';
 
 /**
  * ServiceRegistry acts as our temporary Composition Root.
@@ -16,6 +18,7 @@ import { MockDiscoveryQueryRepository } from '../../infrastructure/db/mock/MockD
  */
 export interface ServiceRegistry {
   discoveryService: DiscoveryService;
+  communityDetailService: CommunityDetailService;
 }
 
 // Temporary manual DI wiring. 
@@ -24,9 +27,14 @@ const rankingService = new RankingService();
 const discoveryQueryRepo = new MockDiscoveryQueryRepository();
 const discoveryService = new DiscoveryService(discoveryQueryRepo, rankingService);
 
+const detailQueryRepo = new MockCommunityDetailQueryRepository();
+const communityDetailService = new CommunityDetailService(detailQueryRepo);
+
 const defaultRegistry: ServiceRegistry = {
   discoveryService,
+  communityDetailService,
 };
+
 
 const ServiceContext = createContext<ServiceRegistry | null>(null);
 
