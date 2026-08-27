@@ -85,6 +85,8 @@ export class CatchUpService implements ICatchUpService {
 
       const highSignalCount = topicDiscussions.filter(d => d.signalQuality !== 'low_signal').length;
 
+      const allReplyIds = topicDiscussions.flatMap(d => (d.replies || []).map(r => r.id));
+
       return {
         roadmapItemId: topicEvent.roadmapItemId,
         orderIndex: topicEvent.orderIndex,
@@ -100,6 +102,7 @@ export class CatchUpService implements ICatchUpService {
         divergentTopics: insight?.divergentTopics || [],
         topResources,
         sourceDiscussionIds: topicDiscussions.map(d => d.id),
+        sourceReplyIds: Array.from(new Set(allReplyIds)),
         sourceResourceIds: topResources.map(r => r.id),
       };
     });

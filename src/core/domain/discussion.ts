@@ -18,6 +18,8 @@ export type ConsensusStatus =
   | 'open'
   | 'informational';
 
+export type ReplyStance = 'supporting' | 'opposing' | 'alternative' | 'neutral';
+
 export interface DiscussionAuthor {
   id: string;
   name: string;
@@ -41,6 +43,7 @@ export interface DiscussionReply {
   content: string;
   createdAt: Date;
   isAnswer?: boolean;
+  stance?: ReplyStance;
 }
 
 export interface Discussion {
@@ -57,6 +60,7 @@ export interface Discussion {
   createdAt: Date;
   isResolved?: boolean;
   resolutionSummary?: string;
+  resolvedBy?: string;
   perspectiveSummary?: string;
   resources?: DiscussionResource[];
   replies: DiscussionReply[];

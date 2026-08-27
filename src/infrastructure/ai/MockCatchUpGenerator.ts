@@ -1,5 +1,6 @@
 import { ICatchUpGenerator, CatchUpGenerationInput, CatchUpGenerationOutput } from '../../core/services/ICatchUpGenerator';
-import { ConsensusLevel, EvidenceStatus } from '../../core/readmodels/CatchUpReadModel';
+import { EvidenceStatus } from '../../core/readmodels/CatchUpReadModel';
+import { DiscussionEvidenceAnalyzer } from '../../core/evidence/DiscussionEvidenceAnalyzer';
 
 export class MockCatchUpGenerator implements ICatchUpGenerator {
   async generateCatchUp(input: CatchUpGenerationInput): Promise<CatchUpGenerationOutput> {
@@ -28,7 +29,7 @@ export class MockCatchUpGenerator implements ICatchUpGenerator {
     }
 
     const hasMissed = missedTopics.length > 0;
-    let evidenceStatus: EvidenceStatus = hasMissed ? 'grounded' : 'no_history_needed';
+    const evidenceStatus: EvidenceStatus = hasMissed ? 'grounded' : 'no_history_needed';
 
     let summaryHeadline = '';
     let summaryNarrative = '';
@@ -44,68 +45,28 @@ export class MockCatchUpGenerator implements ICatchUpGenerator {
       summaryNarrative = `Before you joined on ${memberJoinedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, the community covered ${missedTopics.length} foundational milestones. Here is the verified summary of evidence, open inquiries, and key resources.`;
     }
 
-    // Process each missed topic into evidence-grounded insights
+    // Process each missed topic using the deterministic DiscussionEvidenceAnalyzer
     const topicInsights = missedTopics.map(topic => {
-      const topicDiscussions = discussions.filter(d => d.roadmapItemId === topic.roadmapItemId);
-      // Filter out pure chatter/noise from driving the synthesis
-      const highSignalDiscussions = topicDiscussions.filter(d => d.signalQuality !== 'low_signal');
-
-      // 1. Detect open / unanswered questions without fabricating resolutions
-      const openQuestionsList = topicDiscussions
-        .filter(d => {
-          if (d.type === 'question') {
-            return d.consensusStatus === 'unanswered' || (!d.isResolved && d.replies.length === 0);
-          }
-          return false;
-        })
-        .map(q => ({
-          id: q.id,
-          title: q.title,
-          authorName: q.author.name,
-        }));
-
-      // 2. Detect divergent views / conflicting perspectives without fabricating consensus
-      const divergentDiscussions = topicDiscussions.filter(d => d.consensusStatus === 'differing_perspectives');
-      const divergentTopics = divergentDiscussions.map(d => ({
-        title: d.title,
-        summary: d.perspectiveSummary || d.content,
-        perspectives: d.replies.map(r => `${r.author.name}: ${r.content}`),
-      }));
-
-      // 3. Evaluate consensus level
-      let consensusLevel: ConsensusLevel = 'informational';
-      if (divergentTopics.length > 0) {
-        consensusLevel = 'differing_perspectives';
-      } else if (openQuestionsList.length > 0 && highSignalDiscussions.length === openQuestionsList.length) {
-        consensusLevel = 'unresolved_inquiry';
-      } else if (topicDiscussions.some(d => d.isResolved || d.consensusStatus === 'resolved')) {
-        consensusLevel = 'strong_consensus';
-      } else if (topicDiscussions.length === 0) {
-        consensusLevel = 'insufficient_data';
-      }
-
-      // 4. Synthesize key idea & summary strictly reflecting reality (no hallucination)
-      let keyIdea = topic.keyIdea || `Core principles of ${topic.topicTitle}`;
-      let summary = topic.summary || topic.description;
-
-      if (consensusLevel === 'differing_perspectives') {
-        keyIdea = `Multiple approaches explored for ${topic.topicTitle} with active trade-off debate.`;
-        summary = `The community explored contrasting implementations. Rather than a single consensus, members documented key trade-offs between differing approaches.`;
-      } else if (consensusLevel === 'unresolved_inquiry') {
-        keyIdea = `Open questions raised regarding ${topic.topicTitle}; active inquiry remains ongoing.`;
-        summary = `Members posed key architectural questions during this milestone that remained open for ongoing cohort exploration.`;
-      } else if (consensusLevel === 'insufficient_data') {
-        keyIdea = `Milestone recorded with limited historical discussion logs.`;
-        summary = topic.description || `Milestone completed without detailed discussion archives.`;
-      }
+      const analyzed = DiscussionEvidenceAnalyzer.analyzeTopicEvidence(topic, discussions);
 
       return {
-        roadmapItemId: topic.roadmapItemId,
-        keyIdea,
-        summary,
-        consensusLevel,
-        openQuestions: openQuestionsList,
-        divergentTopics,
+        roadmapItemId: analyzed.roadmapItemId,
+        keyIdea: analyzed.keyIdea,
+        summary: analyzed.summary,
+        consensusLevel: analyzed.consensusLevel,
+        openQuestions: analyzed.openQuestions.map(q => ({
+          id: q.id,
+          title: q.title,
+          authorName: q.authorName,
+          discussionId: q.discussionId,
+        })),
+        divergentTopics: analyzed.divergentTopics.map(d => ({
+          title: d.title,
+          summary: d.summary,
+          perspectives: d.perspectives,
+          sourceDiscussionId: d.sourceDiscussionId,
+          sourceReplyIds: d.sourceReplyIds,
+        })),
       };
     });
 
@@ -113,22 +74,23 @@ export class MockCatchUpGenerator implements ICatchUpGenerator {
     const currentTopicObj = allTopics.find(t => t.status === 'current' || t.topicTitle === currentTopic);
     const activeDiscussions = discussions.filter(d => currentTopicObj && d.roadmapItemId === currentTopicObj.roadmapItemId);
 
+    const firstMissed = missedTopics[0];
     const lastMissed = missedTopics[missedTopics.length - 1];
-    const lastMissedInsight = topicInsights[topicInsights.length - 1];
+    const lastMissedAnalyzed = lastMissed ? DiscussionEvidenceAnalyzer.analyzeTopicEvidence(lastMissed, discussions) : null;
 
-    let confidence: 'high' | 'moderate' | 'tentative' = 'high';
-    if (hasMissed && lastMissedInsight?.consensusLevel === 'differing_perspectives') {
-      confidence = 'moderate';
-    } else if (hasMissed && lastMissedInsight?.consensusLevel === 'unresolved_inquiry') {
-      confidence = 'tentative';
+    let startingConfidence: 'high' | 'moderate' | 'tentative' = 'high';
+    if (hasMissed && lastMissedAnalyzed) {
+      startingConfidence = lastMissedAnalyzed.confidence;
     }
 
     const recommendedStartingPoint = hasMissed
       ? {
-          roadmapItemId: lastMissed.roadmapItemId,
-          title: lastMissed.topicTitle,
-          reason: `Review the verified takeaways and open inquiries from "${lastMissed.topicTitle}" before diving into "${currentTopic}".`,
-          confidence,
+          roadmapItemId: firstMissed.roadmapItemId,
+          title: firstMissed.topicTitle,
+          reason: missedTopics.length > 1
+            ? `Start from the earliest missed milestone "${firstMissed.topicTitle}" to build foundational continuity before moving to "${currentTopic}".`
+            : `Review the verified takeaways and open inquiries from "${lastMissed.topicTitle}" before diving into "${currentTopic}".`,
+          confidence: startingConfidence,
         }
       : {
           roadmapItemId: currentTopicObj?.roadmapItemId || 'current',

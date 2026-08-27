@@ -420,6 +420,12 @@ describe('CatchUpService & Evidence Integrity', () => {
       expect(res.title).toBe('ReAct Paper');
       expect(res.sourceDiscussionId).toBe('disc_resolved');
       expect(res.attributedBy).toBe('Marcus Vance');
+
+      // Provenance tracking IDs
+      expect(foundationsTopic.sourceDiscussionIds).toContain('disc_resolved');
+      expect(foundationsTopic.sourceDiscussionIds).toContain('disc_unanswered');
+      expect(foundationsTopic.sourceResourceIds).toContain('res_1');
+      expect(foundationsTopic.sourceReplyIds).toContain('rep_1');
     });
   });
 

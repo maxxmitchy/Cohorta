@@ -28,14 +28,18 @@ export interface MissedTopicInsight {
     id: string;
     title: string;
     authorName: string;
+    discussionId?: string;
   }>;
   divergentTopics: Array<{
     title: string;
     summary: string;
     perspectives: string[];
+    sourceDiscussionId?: string;
+    sourceReplyIds?: string[];
   }>;
   topResources: DiscussionResource[];
   sourceDiscussionIds: string[];
+  sourceReplyIds: string[];
   sourceResourceIds: string[];
 }
 
