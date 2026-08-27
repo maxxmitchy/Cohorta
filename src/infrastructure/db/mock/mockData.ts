@@ -131,10 +131,32 @@ export const mockCommunities: Community[] = [
     tags: ['SaaS', 'B2B', 'Europe'],
     createdAt: new Date('2024-02-10T00:00:00Z'),
     updatedAt: new Date('2024-02-15T00:00:00Z'),
+  },
+  {
+    id: 'com_empty',
+    creatorId: 'u1',
+    categoryId: 'c1',
+    name: 'Autonomous Systems Early Cohort',
+    description: 'A brand new cohort with no historical milestones logged yet.',
+    skillLevel: 'Beginner',
+    status: 'active',
+    currentTopic: 'Kickoff & Introductions',
+    tags: ['Early', 'New'],
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }
 ];
 
 export const mockMetrics: Record<string, CommunityStats> = {
+  'com_empty': {
+    communityId: 'com_empty',
+    memberCount: 5,
+    activeToday: 2,
+    weeklyGrowthPercentage: 0,
+    rating: 5.0,
+    reviewCount: 0,
+    lastCalculatedAt: new Date(),
+  },
   'com_1': {
     communityId: 'com_1',
     memberCount: 1847,

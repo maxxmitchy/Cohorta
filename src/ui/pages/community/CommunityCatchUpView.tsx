@@ -8,12 +8,15 @@ import {
   PlayCircle, 
   MessageSquare, 
   ExternalLink, 
-  BookOpen, 
   Layers, 
   Calendar, 
   ArrowRight,
   ShieldAlert,
-  Flame
+  Flame,
+  HelpCircle,
+  Scale,
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 import { useServices } from '../../context/ServiceContext';
 import { useAuth } from '../../context/AuthContext';
@@ -96,6 +99,46 @@ export function CommunityCatchUpView() {
     );
   }
 
+  const renderConsensusBadge = (consensus: MissedTopicInsight['consensusLevel']) => {
+    switch (consensus) {
+      case 'strong_consensus':
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+            <ShieldCheck className="h-3 w-3" />
+            Verified Consensus
+          </span>
+        );
+      case 'differing_perspectives':
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-200">
+            <Scale className="h-3 w-3" />
+            Debate / Differing Views
+          </span>
+        );
+      case 'unresolved_inquiry':
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-800 border border-indigo-200">
+            <HelpCircle className="h-3 w-3" />
+            Open Inquiries
+          </span>
+        );
+      case 'informational':
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-700 border border-slate-200">
+            <Info className="h-3 w-3" />
+            Resource Archive
+          </span>
+        );
+      case 'insufficient_data':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-medium text-neutral-600">
+            Sparse Data
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Top Breadcrumb Navigation */}
@@ -142,8 +185,14 @@ export function CommunityCatchUpView() {
             <span>•</span>
             <div className="flex items-center gap-1.5">
               <Layers className="h-4 w-4 text-neutral-400" />
-              {catchUpData.hasMissedContent ? `${catchUpData.missedTopicsCount} previous milestones summarized` : 'In sync with cohort start'}
+              {catchUpData.hasMissedContent ? `${catchUpData.missedTopicsCount} previous milestones synthesized` : 'In sync with cohort start'}
             </div>
+            {catchUpData.evidenceStatus === 'empty_history' && (
+              <>
+                <span>•</span>
+                <span className="rounded bg-neutral-800 px-2 py-0.5 text-neutral-300">Early Cohort State</span>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -162,7 +211,7 @@ export function CommunityCatchUpView() {
                 </h2>
                 <p className="text-xs text-neutral-500">
                   {catchUpData.hasMissedContent 
-                    ? 'Synthesized key ideas and discussions covered before you joined' 
+                    ? 'Synthesized key ideas, consensus resolutions, and open questions from past milestones' 
                     : 'The core topics that set up our current focus'}
                 </p>
               </div>
@@ -175,8 +224,8 @@ export function CommunityCatchUpView() {
                     key={topic.roadmapItemId}
                     className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-xs hover:border-neutral-300 transition-all sm:p-7"
                   >
-                    {/* Topic Header */}
-                    <div className="mb-3 flex items-start justify-between">
+                    {/* Topic Header with Consensus Badge */}
+                    <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2.5">
                         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-neutral-100 text-xs font-bold text-neutral-800">
                           {topic.orderIndex}
@@ -190,9 +239,9 @@ export function CommunityCatchUpView() {
                           )}
                         </div>
                       </div>
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                        ✓ Completed
-                      </span>
+                      <div>
+                        {renderConsensusBadge(topic.consensusLevel)}
+                      </div>
                     </div>
 
                     {/* Key Idea (The differentiator takeaway) */}
@@ -209,12 +258,51 @@ export function CommunityCatchUpView() {
                       {topic.summary}
                     </p>
 
+                    {/* Divergent Perspectives / Trade-Offs */}
+                    {topic.divergentTopics && topic.divergentTopics.length > 0 && (
+                      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
+                          <Scale className="h-3.5 w-3.5 text-amber-700" />
+                          Differing Approaches & Trade-Offs
+                        </div>
+                        <div className="space-y-2">
+                          {topic.divergentTopics.map(div => (
+                            <div key={div.title} className="text-xs text-amber-950">
+                              <p className="font-semibold">{div.title}:</p>
+                              <p className="mt-0.5 text-amber-900 leading-relaxed">{div.summary}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Open Unanswered Questions (Truthful, No Hallucination) */}
+                    {topic.openQuestions && topic.openQuestions.length > 0 && (
+                      <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-900">
+                          <HelpCircle className="h-3.5 w-3.5 text-indigo-600" />
+                          Open Inquiries in This Milestone
+                        </div>
+                        <ul className="space-y-1.5">
+                          {topic.openQuestions.map(oq => (
+                            <li key={oq.id} className="text-xs text-indigo-950 flex items-start gap-2">
+                              <span className="text-indigo-400">•</span>
+                              <span className="font-medium">{oq.title}</span>
+                              {oq.authorName && (
+                                <span className="text-indigo-500 text-[11px]">({oq.authorName})</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     {/* Notable Discussions within this topic */}
                     {topic.notableDiscussions.length > 0 && (
                       <div className="space-y-2 border-t border-neutral-100 pt-4">
                         <div className="flex items-center justify-between text-xs font-semibold text-neutral-500">
                           <span>Notable Community Discussions ({topic.discussionCount})</span>
-                          <span className="text-[11px] text-neutral-400">Click to read resolution</span>
+                          <span className="text-[11px] text-neutral-400">Click to read resolution & replies</span>
                         </div>
                         <div className="space-y-2">
                           {topic.notableDiscussions.map((disc: Discussion) => (
@@ -224,21 +312,33 @@ export function CommunityCatchUpView() {
                               className="w-full text-left flex items-center justify-between rounded-xl border border-neutral-100 bg-white p-3 hover:border-neutral-300 hover:bg-neutral-50/70 transition-colors group"
                             >
                               <div className="flex items-center gap-2.5">
-                                <MessageSquare className="h-4 w-4 text-neutral-400 group-hover:text-neutral-900 transition-colors" />
+                                <MessageSquare className="h-4 w-4 text-neutral-400 group-hover:text-neutral-900 transition-colors shrink-0" />
                                 <span className="text-xs font-semibold text-neutral-800 line-clamp-1 group-hover:text-neutral-900">
                                   {disc.title}
                                 </span>
                               </div>
-                              <span className="shrink-0 text-[11px] font-medium text-neutral-400 group-hover:text-neutral-700">
-                                {disc.replyCount} {disc.replyCount === 1 ? 'reply' : 'replies'} →
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {disc.consensusStatus === 'differing_perspectives' && (
+                                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">
+                                    Debate
+                                  </span>
+                                )}
+                                {disc.consensusStatus === 'unanswered' && (
+                                  <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-800">
+                                    Open
+                                  </span>
+                                )}
+                                <span className="text-[11px] font-medium text-neutral-400 group-hover:text-neutral-700">
+                                  {disc.replyCount} {disc.replyCount === 1 ? 'reply' : 'replies'} →
+                                </span>
+                              </div>
                             </button>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* Recommended Resources */}
+                    {/* Recommended Resources with Provenance */}
                     {topic.topResources.length > 0 && (
                       <div className="mt-4 flex flex-wrap items-center gap-2">
                         <span className="text-[11px] font-bold text-neutral-400 uppercase">Top Resources:</span>
@@ -252,6 +352,9 @@ export function CommunityCatchUpView() {
                           >
                             <ExternalLink className="h-3 w-3" />
                             {res.title}
+                            {res.attributedBy && (
+                              <span className="text-[10px] text-neutral-400">({res.attributedBy})</span>
+                            )}
                           </a>
                         ))}
                       </div>
@@ -262,9 +365,15 @@ export function CommunityCatchUpView() {
             ) : (
               <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center">
                 <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-500" />
-                <h3 className="text-lg font-bold text-neutral-900">You haven't missed any past topics</h3>
+                <h3 className="text-lg font-bold text-neutral-900">
+                  {catchUpData.evidenceStatus === 'empty_history' 
+                    ? 'No past milestones recorded yet' 
+                    : "You haven't missed any past topics"}
+                </h3>
                 <p className="mt-2 text-sm text-neutral-600 max-w-md mx-auto">
-                  You joined when this community kicked off. You have access to all live threads and current focus milestones.
+                  {catchUpData.evidenceStatus === 'empty_history'
+                    ? 'This cohort is in its kickoff stage. You are starting right on time alongside the first cohort members.'
+                    : 'You joined when this community kicked off. You have access to all live threads and current focus milestones.'}
                 </p>
                 <div className="mt-6">
                   <Link
@@ -311,9 +420,16 @@ export function CommunityCatchUpView() {
 
           {/* WHAT I SHOULD DO NEXT (Recommended Starting Point) */}
           <section className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/70 via-white to-neutral-50 p-6 shadow-xs sm:p-7">
-            <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-800">
-              <Compass className="h-4 w-4 text-emerald-600" />
-              Recommended Next Action
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-800">
+                <Compass className="h-4 w-4 text-emerald-600" />
+                Recommended Next Action
+              </div>
+              {catchUpData.recommendedStartingPoint.confidence && (
+                <span className="rounded-full bg-emerald-100/80 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  {catchUpData.recommendedStartingPoint.confidence} confidence
+                </span>
+              )}
             </div>
 
             <h4 className="text-base font-bold text-neutral-900 mb-1">

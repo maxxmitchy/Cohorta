@@ -1,4 +1,4 @@
-import { X, CheckCircle2, MessageSquare, ExternalLink, HelpCircle, Sparkles, BookOpen, User, FolderGit2 } from 'lucide-react';
+import { X, CheckCircle2, MessageSquare, ExternalLink, HelpCircle, Sparkles, BookOpen, User, FolderGit2, AlertCircle, Scale } from 'lucide-react';
 import { Discussion } from '../../../core/domain/discussion';
 
 interface Props {
@@ -17,7 +17,7 @@ export function DiscussionModal({ discussion, onClose }: Props) {
       >
         {/* Header */}
         <div className="flex items-start justify-between border-b border-neutral-100 p-6">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span className="rounded-md bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-700">
               {discussion.topicTitle}
             </span>
@@ -27,6 +27,18 @@ export function DiscussionModal({ discussion, onClose }: Props) {
               {discussion.type === 'resource' && <BookOpen className="h-3.5 w-3.5 text-blue-500" />}
               {discussion.type.replace('_', ' ')}
             </span>
+            {discussion.consensusStatus === 'differing_perspectives' && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                <Scale className="h-3 w-3" />
+                Active Debate / Differing Views
+              </span>
+            )}
+            {discussion.consensusStatus === 'unanswered' && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-800 border border-indigo-200">
+                <AlertCircle className="h-3 w-3" />
+                Open Inquiry (No Consensus Yet)
+              </span>
+            )}
           </div>
           <button 
             onClick={onClose}
@@ -83,11 +95,37 @@ export function DiscussionModal({ discussion, onClose }: Props) {
             </div>
           )}
 
-          {/* Attached Resources */}
+          {/* Differing Perspectives Banner */}
+          {discussion.consensusStatus === 'differing_perspectives' && discussion.perspectiveSummary && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800">
+                <Scale className="h-4 w-4 text-amber-600" />
+                Divergent Trade-Offs & Member Perspectives
+              </div>
+              <p className="text-sm text-amber-900 leading-relaxed">
+                {discussion.perspectiveSummary}
+              </p>
+            </div>
+          )}
+
+          {/* Unanswered Open Question Notice */}
+          {(discussion.consensusStatus === 'unanswered' || (discussion.type === 'question' && !discussion.isResolved && discussion.replies.length === 0)) && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-800">
+                <HelpCircle className="h-4 w-4 text-indigo-600" />
+                Open Inquiry
+              </div>
+              <p className="text-xs text-indigo-900 leading-relaxed">
+                This question remains open with no formal answer or consensus recorded yet. Cohort members are encouraged to share insights in live discussions.
+              </p>
+            </div>
+          )}
+
+          {/* Attached Resources with Provenance */}
           {discussion.resources && discussion.resources.length > 0 && (
             <div className="space-y-2">
               <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                Attached Resources
+                Attached Resources & Evidence
               </div>
               <div className="space-y-2">
                 {discussion.resources.map(res => (
@@ -102,7 +140,14 @@ export function DiscussionModal({ discussion, onClose }: Props) {
                       {res.type === 'github' && <FolderGit2 className="h-4 w-4 text-neutral-700" />}
                       {res.type === 'paper' && <BookOpen className="h-4 w-4 text-blue-600" />}
                       {res.type === 'guide' && <ExternalLink className="h-4 w-4 text-emerald-600" />}
-                      <span className="text-sm font-semibold text-neutral-900">{res.title}</span>
+                      <div>
+                        <span className="text-sm font-semibold text-neutral-900">{res.title}</span>
+                        {res.attributedBy && (
+                          <div className="text-[11px] text-neutral-400">
+                            Shared by {res.attributedBy}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <ExternalLink className="h-4 w-4 text-neutral-400" />
                   </a>

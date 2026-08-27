@@ -9,7 +9,7 @@ import { Membership } from '../domain/membership';
 import { HistoricalTopicEvent } from '../domain/history';
 import { Discussion } from '../domain/discussion';
 
-describe('CatchUpService', () => {
+describe('CatchUpService & Evidence Integrity', () => {
   let mockHistoryRepo: ICommunityHistoryQueryRepository;
   let mockMembershipRepo: IMembershipRepository;
   let catchUpGenerator: ICatchUpGenerator;
@@ -29,12 +29,21 @@ describe('CatchUpService', () => {
     updatedAt: new Date('2024-01-01'),
   };
 
-  // Historical Topics:
-  // Topic 1: completed 2024-01-08
-  // Topic 2: completed 2024-01-15
-  // Topic 3: completed 2024-01-22
-  // Topic 4: current (started 2024-01-23)
-  // Topic 5: upcoming
+  const emptyCommunity: Community = {
+    id: 'com_empty',
+    creatorId: 'u_creator',
+    categoryId: 'cat_ai',
+    name: 'Autonomous Systems Early Cohort',
+    description: 'Brand new community with no past milestones',
+    skillLevel: 'Beginner',
+    status: 'active',
+    currentTopic: 'Kickoff & Setup',
+    tags: ['early'],
+    createdAt: new Date('2024-02-01'),
+    updatedAt: new Date('2024-02-01'),
+  };
+
+  // Historical Topics
   const mockHistoricalTopics: HistoricalTopicEvent[] = [
     {
       id: 'ht_1',
@@ -101,8 +110,9 @@ describe('CatchUpService', () => {
     },
   ];
 
-  const sampleDiscussion: Discussion = {
-    id: 'disc_1',
+  // Rich Evidence Discussion Fixtures
+  const resolvedDiscussion: Discussion = {
+    id: 'disc_resolved',
     communityId: 'com_1',
     roadmapItemId: 'r1_1',
     topicTitle: 'Foundations',
@@ -112,23 +122,117 @@ describe('CatchUpService', () => {
       avatarUrl: 'https://example.com/marcus.jpg',
       role: 'member',
     },
-    title: 'Loop handling patterns',
-    content: 'Discussion on loop breakout.',
+    title: 'Loop handling patterns with hard iteration limits',
+    content: 'Discussion on loop breakout and recovery mechanisms.',
     type: 'discussion',
+    signalQuality: 'high_signal',
+    consensusStatus: 'resolved',
     createdAt: new Date('2024-01-05'),
-    replies: [],
-    replyCount: 0,
+    isResolved: true,
+    resolutionSummary: 'Use a step counter limit of 5 iterations with tool call hashing.',
+    replies: [
+      {
+        id: 'rep_1',
+        author: { id: 'u_creator', name: 'Sarah AI', avatarUrl: '', role: 'creator' },
+        content: 'Agreed, this is the standard pattern.',
+        createdAt: new Date('2024-01-05'),
+        isAnswer: true,
+      }
+    ],
+    replyCount: 1,
     resources: [
       {
         id: 'res_1',
         title: 'ReAct Paper',
         url: 'https://arxiv.org/abs/2210.03629',
         type: 'paper',
+        sourceDiscussionId: 'disc_resolved',
+        sourceRoadmapItemId: 'r1_1',
+        attributedBy: 'Marcus Vance',
       },
     ],
   };
 
-  // Member who joined on 2024-01-01 (before topic 1 completed) -> Missed 0 topics
+  const unansweredQuestionDiscussion: Discussion = {
+    id: 'disc_unanswered',
+    communityId: 'com_1',
+    roadmapItemId: 'r1_1',
+    topicTitle: 'Foundations',
+    author: {
+      id: 'u_david',
+      name: 'David Chen',
+      avatarUrl: 'https://example.com/david.jpg',
+      role: 'member',
+    },
+    title: 'How do you benchmark reasoning loop convergence rate across diverse LLM backends?',
+    content: 'Has anyone compared convergence between Claude 3.5 Sonnet and GPT-4o on ambiguous multi-step tasks?',
+    type: 'question',
+    signalQuality: 'high_signal',
+    consensusStatus: 'unanswered',
+    createdAt: new Date('2024-01-06'),
+    isResolved: false,
+    replies: [],
+    replyCount: 0,
+  };
+
+  const conflictingPerspectivesDiscussion: Discussion = {
+    id: 'disc_conflicting',
+    communityId: 'com_1',
+    roadmapItemId: 'r1_2',
+    topicTitle: 'Tool Calling',
+    author: {
+      id: 'u_elena',
+      name: 'Elena Rostova',
+      avatarUrl: 'https://example.com/elena.jpg',
+      role: 'member',
+    },
+    title: 'gRPC vs REST vs In-Process WASM for Tool Execution Microservices',
+    content: 'Our team is split between in-process WASM sandboxes and remote gRPC microservices.',
+    type: 'discussion',
+    signalQuality: 'high_signal',
+    consensusStatus: 'differing_perspectives',
+    perspectiveSummary: 'Trade-off debate between sub-millisecond latency (WASM) and multi-language microservice flexibility (gRPC). No single mandate.',
+    createdAt: new Date('2024-01-12'),
+    isResolved: false,
+    replies: [
+      {
+        id: 'rep_grpc',
+        author: { id: 'u_elena', name: 'Elena Rostova', avatarUrl: '', role: 'member' },
+        content: 'gRPC gives type safety across Python and Go.',
+        createdAt: new Date('2024-01-12'),
+      },
+      {
+        id: 'rep_wasm',
+        author: { id: 'u_marcus', name: 'Marcus Vance', avatarUrl: '', role: 'member' },
+        content: 'WASM eliminates 15ms of network roundtrips.',
+        createdAt: new Date('2024-01-13'),
+      }
+    ],
+    replyCount: 2,
+  };
+
+  const noisySocialDiscussion: Discussion = {
+    id: 'disc_noisy_social',
+    communityId: 'com_1',
+    roadmapItemId: 'r1_1',
+    topicTitle: 'Foundations',
+    author: {
+      id: 'u_visitor',
+      name: 'Victor Visitor',
+      avatarUrl: 'https://example.com/victor.jpg',
+      role: 'member',
+    },
+    title: 'Excited to be here!',
+    content: 'Hey everyone, anyone doing the live call from Europe?',
+    type: 'social_chatter',
+    signalQuality: 'low_signal',
+    consensusStatus: 'informational',
+    createdAt: new Date('2024-01-02'),
+    replies: [],
+    replyCount: 0,
+  };
+
+  // Membership Fixtures
   const earlyMember: Membership = {
     id: 'm_early',
     userId: 'u_early',
@@ -139,7 +243,6 @@ describe('CatchUpService', () => {
     status: 'active',
   };
 
-  // Member who joined on 2024-01-18 (after topic 1 and 2 completed, but before topic 3) -> Missed topic 1 and 2
   const midMember: Membership = {
     id: 'm_mid',
     userId: 'u_mid',
@@ -150,7 +253,6 @@ describe('CatchUpService', () => {
     status: 'active',
   };
 
-  // Member who joined on 2024-01-25 (during Topic 4 current) -> Missed topics 1, 2, and 3
   const lateMember: Membership = {
     id: 'm_late',
     userId: 'u_late',
@@ -158,6 +260,16 @@ describe('CatchUpService', () => {
     planId: 'plan_1',
     role: 'member',
     joinedAt: new Date('2024-01-25'),
+    status: 'active',
+  };
+
+  const emptyMember: Membership = {
+    id: 'm_empty_user',
+    userId: 'u_empty_user',
+    communityId: 'com_empty',
+    planId: 'plan_empty',
+    role: 'member',
+    joinedAt: new Date('2024-02-05'),
     status: 'active',
   };
 
@@ -175,24 +287,33 @@ describe('CatchUpService', () => {
     mockHistoryRepo = {
       getCommunityHistory: vi.fn(),
       getDiscussionsForTopic: vi.fn().mockImplementation((_cId: string, rId: string) => {
-        if (rId === 'r1_1') return Promise.resolve([sampleDiscussion]);
+        if (rId === 'r1_1') return Promise.resolve([resolvedDiscussion, unansweredQuestionDiscussion, noisySocialDiscussion]);
+        if (rId === 'r1_2') return Promise.resolve([conflictingPerspectivesDiscussion]);
         return Promise.resolve([]);
       }),
       getDiscussionById: vi.fn(),
-      getHistoricalTopics: vi.fn().mockResolvedValue(mockHistoricalTopics),
+      getHistoricalTopics: vi.fn().mockImplementation((cId: string) => {
+        if (cId === 'com_empty') return Promise.resolve([]);
+        return Promise.resolve(mockHistoricalTopics);
+      }),
     };
 
     mockMembershipRepo = {
       getCommunity: vi.fn().mockImplementation((id: string) => {
         if (id === 'com_1') return Promise.resolve(validCommunity);
+        if (id === 'com_empty') return Promise.resolve(emptyCommunity);
         return Promise.resolve(null);
       }),
       getMembership: vi.fn().mockImplementation((userId: string, communityId: string) => {
-        if (communityId !== 'com_1') return Promise.resolve(null);
-        if (userId === 'u_early') return Promise.resolve(earlyMember);
-        if (userId === 'u_mid') return Promise.resolve(midMember);
-        if (userId === 'u_late') return Promise.resolve(lateMember);
-        if (userId === 'u_past_due') return Promise.resolve(pastDueMember);
+        if (communityId === 'com_1') {
+          if (userId === 'u_early') return Promise.resolve(earlyMember);
+          if (userId === 'u_mid') return Promise.resolve(midMember);
+          if (userId === 'u_late') return Promise.resolve(lateMember);
+          if (userId === 'u_past_due') return Promise.resolve(pastDueMember);
+        }
+        if (communityId === 'com_empty' && userId === 'u_empty_user') {
+          return Promise.resolve(emptyMember);
+        }
         return Promise.resolve(null);
       }),
       getPlan: vi.fn(),
@@ -245,15 +366,60 @@ describe('CatchUpService', () => {
       expect(catchUp.currentTopic).toBe('Agent Memory Systems');
       expect(catchUp.currentFocusContext.title).toBe('Agent Memory Systems');
     });
+  });
 
-    it('attaches notable discussions and resources to missed topics', async () => {
+  describe('Evidence Model & Noise Filtering Stress Tests', () => {
+    it('filters out low-signal social chatter from notable discussions', async () => {
       const catchUp = await service.getCatchUp('u_late', 'com_1');
-
       const foundationsTopic = catchUp.missedTopics[0];
-      expect(foundationsTopic.notableDiscussions).toHaveLength(1);
-      expect(foundationsTopic.notableDiscussions[0].id).toBe('disc_1');
+
+      const discussionIds = foundationsTopic.notableDiscussions.map(d => d.id);
+      expect(discussionIds).toContain('disc_resolved');
+      expect(discussionIds).toContain('disc_unanswered');
+      expect(discussionIds).not.toContain('disc_noisy_social'); // Low-signal chatter filtered
+    });
+
+    it('detects and preserves unanswered questions without hallucinating consensus', async () => {
+      const catchUp = await service.getCatchUp('u_late', 'com_1');
+      const foundationsTopic = catchUp.missedTopics[0];
+
+      expect(foundationsTopic.openQuestions).toBeDefined();
+      expect(foundationsTopic.openQuestions.length).toBeGreaterThan(0);
+      expect(foundationsTopic.openQuestions[0].title).toContain('How do you benchmark reasoning loop convergence rate');
+      expect(foundationsTopic.openQuestions[0].id).toBe('disc_unanswered');
+      expect(foundationsTopic.openQuestions[0].authorName).toBe('David Chen');
+    });
+
+    it('identifies divergent perspectives and marks consensus status accurately', async () => {
+      const catchUp = await service.getCatchUp('u_late', 'com_1');
+      const toolCallingTopic = catchUp.missedTopics[1];
+
+      expect(toolCallingTopic.consensusLevel).toBe('differing_perspectives');
+      expect(toolCallingTopic.divergentTopics).toHaveLength(1);
+      expect(toolCallingTopic.divergentTopics[0].title).toContain('gRPC vs REST vs In-Process WASM');
+      expect(toolCallingTopic.divergentTopics[0].summary).toContain('Trade-off debate between sub-millisecond latency');
+      expect(toolCallingTopic.divergentTopics[0].perspectives.length).toBeGreaterThan(0);
+    });
+
+    it('handles empty/early community history gracefully without crashing', async () => {
+      const catchUp = await service.getCatchUp('u_empty_user', 'com_empty');
+
+      expect(catchUp).toBeDefined();
+      expect(catchUp.hasMissedContent).toBe(false);
+      expect(catchUp.evidenceStatus).toBe('empty_history');
+      expect(catchUp.missedTopics).toHaveLength(0);
+      expect(catchUp.summaryNarrative).toContain('newly created');
+    });
+
+    it('preserves provenance attribution on attached resources', async () => {
+      const catchUp = await service.getCatchUp('u_late', 'com_1');
+      const foundationsTopic = catchUp.missedTopics[0];
+
       expect(foundationsTopic.topResources).toHaveLength(1);
-      expect(foundationsTopic.topResources[0].title).toBe('ReAct Paper');
+      const res = foundationsTopic.topResources[0];
+      expect(res.title).toBe('ReAct Paper');
+      expect(res.sourceDiscussionId).toBe('disc_resolved');
+      expect(res.attributedBy).toBe('Marcus Vance');
     });
   });
 
@@ -283,8 +449,8 @@ describe('CatchUpService', () => {
     });
   });
 
-  describe('AI Abstraction Boundary', () => {
-    it('MockCatchUpGenerator produces deterministic and coherent output', async () => {
+  describe('Deterministic AI Generator Output', () => {
+    it('MockCatchUpGenerator produces deterministic and coherent output across repeated runs', async () => {
       const output1 = await catchUpGenerator.generateCatchUp({
         memberJoinedAt: new Date('2024-01-25'),
         communityName: 'AI Agent Builders',
@@ -292,7 +458,7 @@ describe('CatchUpService', () => {
         currentTopic: 'Agent Memory Systems',
         allTopics: mockHistoricalTopics,
         missedTopics: [mockHistoricalTopics[0], mockHistoricalTopics[1]],
-        discussions: [sampleDiscussion],
+        discussions: [resolvedDiscussion, conflictingPerspectivesDiscussion],
       });
 
       const output2 = await catchUpGenerator.generateCatchUp({
@@ -302,12 +468,13 @@ describe('CatchUpService', () => {
         currentTopic: 'Agent Memory Systems',
         allTopics: mockHistoricalTopics,
         missedTopics: [mockHistoricalTopics[0], mockHistoricalTopics[1]],
-        discussions: [sampleDiscussion],
+        discussions: [resolvedDiscussion, conflictingPerspectivesDiscussion],
       });
 
       expect(output1.summaryHeadline).toBe(output2.summaryHeadline);
       expect(output1.summaryNarrative).toBe(output2.summaryNarrative);
       expect(output1.recommendedStartingPoint.title).toBe(output2.recommendedStartingPoint.title);
+      expect(output1.recommendedStartingPoint.confidence).toBe(output2.recommendedStartingPoint.confidence);
     });
   });
 });

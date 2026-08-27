@@ -6,7 +6,17 @@ export type DiscussionType =
   | 'learning_milestone'
   | 'resource'
   | 'project'
+  | 'social_chatter'
   | 'introduction';
+
+export type SignalQuality = 'high_signal' | 'normal' | 'low_signal';
+
+export type ConsensusStatus =
+  | 'resolved'
+  | 'differing_perspectives'
+  | 'unanswered'
+  | 'open'
+  | 'informational';
 
 export interface DiscussionAuthor {
   id: string;
@@ -20,6 +30,9 @@ export interface DiscussionResource {
   title: string;
   url: string;
   type: 'link' | 'github' | 'paper' | 'guide';
+  sourceDiscussionId?: string;
+  sourceRoadmapItemId?: string;
+  attributedBy?: string;
 }
 
 export interface DiscussionReply {
@@ -39,9 +52,12 @@ export interface Discussion {
   title: string;
   content: string;
   type: DiscussionType;
+  signalQuality?: SignalQuality;
+  consensusStatus?: ConsensusStatus;
   createdAt: Date;
   isResolved?: boolean;
   resolutionSummary?: string;
+  perspectiveSummary?: string;
   resources?: DiscussionResource[];
   replies: DiscussionReply[];
   replyCount: number;

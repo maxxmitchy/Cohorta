@@ -3,6 +3,7 @@ import { ICommunityHistoryQueryRepository } from '../repositories/ICommunityHist
 import { IMembershipRepository } from '../repositories/IMembershipRepository';
 import { ICatchUpGenerator } from './ICatchUpGenerator';
 import { CatchUpReadModel, MissedTopicInsight } from '../readmodels/CatchUpReadModel';
+import { Discussion } from '../domain/discussion';
 
 export class CatchUpService implements ICatchUpService {
   constructor(
@@ -37,7 +38,7 @@ export class CatchUpService implements ICatchUpService {
     // Retrieve historical topics for the community
     const allTopics = await this.historyQueryRepo.getHistoricalTopics(communityId);
 
-    // Calculate missed topics: completed topics that were concluded before the member joined.
+    // Calculate missed topics: strictly completed topics that concluded before the member joined.
     // Ensure current or upcoming topics are never counted as missed.
     const missedTopicsEvents = allTopics.filter(t => {
       if (t.status !== 'completed' || !t.completedAt) {
@@ -46,14 +47,19 @@ export class CatchUpService implements ICatchUpService {
       return t.completedAt.getTime() < joinedAt.getTime();
     });
 
-    // Sort by orderIndex
+    // Sort deterministically by orderIndex
     missedTopicsEvents.sort((a, b) => a.orderIndex - b.orderIndex);
 
-    // Fetch all discussions across missed topics
-    const allDiscussions = await Promise.all(
-      missedTopicsEvents.map(t => this.historyQueryRepo.getDiscussionsForTopic(communityId, t.roadmapItemId))
+    // Fetch discussions across all missed topics in a single batch (no duplicate queries)
+    const topicDiscussionsMap = new Map<string, Discussion[]>();
+    const discussionBatches = await Promise.all(
+      missedTopicsEvents.map(async (t) => {
+        const discussions = await this.historyQueryRepo.getDiscussionsForTopic(communityId, t.roadmapItemId);
+        topicDiscussionsMap.set(t.roadmapItemId, discussions);
+        return discussions;
+      })
     );
-    const flattenedDiscussions = allDiscussions.flat();
+    const flattenedDiscussions = discussionBatches.flat();
 
     // Call intelligence abstraction
     const currentTopicTitle = community.currentTopic || 'Active Community Focus';
@@ -67,30 +73,36 @@ export class CatchUpService implements ICatchUpService {
       discussions: flattenedDiscussions,
     });
 
-    // Assemble MissedTopicInsights
-    const missedTopics: MissedTopicInsight[] = await Promise.all(
-      missedTopicsEvents.map(async (topicEvent) => {
-        const topicDiscussions = await this.historyQueryRepo.getDiscussionsForTopic(communityId, topicEvent.roadmapItemId);
-        const insight = intelligenceResult.topicInsights.find(i => i.roadmapItemId === topicEvent.roadmapItemId);
+    // Assemble MissedTopicInsights using cached discussions
+    const missedTopics: MissedTopicInsight[] = missedTopicsEvents.map((topicEvent) => {
+      const topicDiscussions = topicDiscussionsMap.get(topicEvent.roadmapItemId) || [];
+      const insight = intelligenceResult.topicInsights.find(i => i.roadmapItemId === topicEvent.roadmapItemId);
 
-        // Extract key resources from discussions
-        const topResources = topicDiscussions
-          .flatMap(d => d.resources || [])
-          .slice(0, 3);
+      // Extract key resources from discussions with provenance
+      const topResources = topicDiscussions
+        .flatMap(d => d.resources || [])
+        .slice(0, 3);
 
-        return {
-          roadmapItemId: topicEvent.roadmapItemId,
-          orderIndex: topicEvent.orderIndex,
-          title: topicEvent.topicTitle,
-          completedAt: topicEvent.completedAt,
-          keyIdea: insight?.keyIdea || topicEvent.keyIdea,
-          summary: insight?.summary || topicEvent.summary,
-          discussionCount: topicDiscussions.length,
-          notableDiscussions: topicDiscussions.slice(0, 3),
-          topResources,
-        };
-      })
-    );
+      const highSignalCount = topicDiscussions.filter(d => d.signalQuality !== 'low_signal').length;
+
+      return {
+        roadmapItemId: topicEvent.roadmapItemId,
+        orderIndex: topicEvent.orderIndex,
+        title: topicEvent.topicTitle,
+        completedAt: topicEvent.completedAt,
+        keyIdea: insight?.keyIdea || topicEvent.keyIdea,
+        summary: insight?.summary || topicEvent.summary,
+        consensusLevel: insight?.consensusLevel || 'informational',
+        discussionCount: topicDiscussions.length,
+        highSignalDiscussionCount: highSignalCount,
+        notableDiscussions: topicDiscussions.filter(d => d.signalQuality !== 'low_signal').slice(0, 3),
+        openQuestions: insight?.openQuestions || [],
+        divergentTopics: insight?.divergentTopics || [],
+        topResources,
+        sourceDiscussionIds: topicDiscussions.map(d => d.id),
+        sourceResourceIds: topResources.map(r => r.id),
+      };
+    });
 
     const hasMissedContent = missedTopics.length > 0;
 
@@ -103,6 +115,7 @@ export class CatchUpService implements ICatchUpService {
       currentTopic: currentTopicTitle,
       hasMissedContent,
       missedTopicsCount: missedTopics.length,
+      evidenceStatus: intelligenceResult.evidenceStatus,
       missedTopics,
       summaryHeadline: intelligenceResult.summaryHeadline,
       summaryNarrative: intelligenceResult.summaryNarrative,
