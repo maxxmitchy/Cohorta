@@ -20,6 +20,25 @@ export type ConsensusStatus =
 
 export type ReplyStance = 'supporting' | 'opposing' | 'alternative' | 'neutral';
 
+export interface SourceProvenance {
+  provider: string;
+  externalCommunityId: string;
+  externalMessageId: string;
+  externalParentMessageId?: string;
+  externalThreadId?: string;
+  externalAuthorId?: string;
+  originalTimestamp: Date;
+  ingestedAt: Date;
+  isEdited?: boolean;
+  editedAt?: Date;
+  isDeleted?: boolean;
+  deletedAt?: Date;
+  isForwarded?: boolean;
+  forwardedFrom?: string;
+  hasMissingParent?: boolean;
+  rawEventIds?: string[];
+}
+
 export interface DiscussionAuthor {
   id: string;
   name: string;
@@ -44,6 +63,8 @@ export interface DiscussionReply {
   createdAt: Date;
   isAnswer?: boolean;
   stance?: ReplyStance;
+  isDeleted?: boolean;
+  sourceProvenance?: SourceProvenance;
 }
 
 export interface Discussion {
@@ -62,6 +83,8 @@ export interface Discussion {
   resolutionSummary?: string;
   resolvedBy?: string;
   perspectiveSummary?: string;
+  isDeleted?: boolean;
+  sourceProvenance?: SourceProvenance;
   resources?: DiscussionResource[];
   replies: DiscussionReply[];
   replyCount: number;

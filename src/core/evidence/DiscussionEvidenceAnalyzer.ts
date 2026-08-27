@@ -76,11 +76,40 @@ export class DiscussionEvidenceAnalyzer {
    * Deterministically classifies an individual discussion based on source evidence.
    */
   static analyzeDiscussion(discussion: Discussion): AnalyzedDiscussion {
-    const replies = discussion.replies || [];
+    // Deleted content must NEVER be treated as valid evidence
+    if (discussion.isDeleted) {
+      return {
+        discussionId: discussion.id,
+        roadmapItemId: discussion.roadmapItemId,
+        classification: 'insufficient_data',
+        confidence: 'tentative',
+        isNoise: true,
+        hasAnswer: false,
+        sourceReplyIds: [],
+        resources: [],
+      };
+    }
+
+    // Filter out deleted replies so they do not influence stances, answers, or consensus
+    const replies = (discussion.replies || []).filter(r => !r.isDeleted);
     const resources = discussion.resources || [];
     const sourceReplyIds = replies.map(r => r.id);
 
-    // Rule 0: Sparse or invalid content
+    // Rule 0a: Incomplete provenance / orphaned message with missing parent
+    if (discussion.sourceProvenance?.hasMissingParent) {
+      return {
+        discussionId: discussion.id,
+        roadmapItemId: discussion.roadmapItemId,
+        classification: 'insufficient_data',
+        confidence: 'tentative',
+        isNoise: false,
+        hasAnswer: false,
+        sourceReplyIds,
+        resources,
+      };
+    }
+
+    // Rule 0b: Sparse or invalid content
     if (!discussion.title || !discussion.content || (discussion.content.trim().length < 4 && replies.length === 0)) {
       return {
         discussionId: discussion.id,
@@ -333,8 +362,8 @@ export class DiscussionEvidenceAnalyzer {
     topic: HistoricalTopicEvent,
     discussions: Discussion[]
   ): AnalyzedTopicEvidence {
-    // Topic & Community isolation: ensure discussions strictly match topic's roadmapItemId
-    const matchingDiscussions = discussions.filter(d => d.roadmapItemId === topic.roadmapItemId);
+    // Topic & Community isolation: ensure discussions strictly match topic's roadmapItemId and are not deleted
+    const matchingDiscussions = discussions.filter(d => d.roadmapItemId === topic.roadmapItemId && !d.isDeleted);
 
     const analyzedList = matchingDiscussions.map(d => this.analyzeDiscussion(d));
     const highSignalAnalyzed = analyzedList.filter(a => !a.isNoise);
