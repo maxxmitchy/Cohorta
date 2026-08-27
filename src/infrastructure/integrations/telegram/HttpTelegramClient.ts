@@ -60,15 +60,15 @@ export class HttpTelegramClient implements ITelegramClient {
       const data: TelegramApiResponse<T> = await response.json();
 
       if (!response.ok || !data.ok) {
-        const sanitizedDesc = (data.description || response.statusText || 'Unknown error')
-          .replace(this.botToken, '***REDACTED***');
+        const rawDesc = data.description || response.statusText || 'Unknown error';
+        const sanitizedDesc = rawDesc.split(this.botToken).join('***REDACTED***');
         throw new Error(`Telegram Bot API error (${data.error_code || response.status}): ${sanitizedDesc}`);
       }
 
       return data;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      const sanitizedMsg = message.replace(this.botToken, '***REDACTED***');
+      const sanitizedMsg = message.split(this.botToken).join('***REDACTED***');
       throw new Error(`Telegram transport failure: ${sanitizedMsg}`);
     }
   }

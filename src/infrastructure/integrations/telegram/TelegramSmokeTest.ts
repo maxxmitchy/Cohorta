@@ -24,7 +24,6 @@ export async function runTelegramIngestionSmokeTest(): Promise<{
 }> {
   const config = validateTelegramConfig({
     authorizedChatIds: new Set([TEST_CHAT_ID_STRING]),
-    defaultRoadmapItemId: 'r_memory_agents',
   });
 
   const rawUpdates = [

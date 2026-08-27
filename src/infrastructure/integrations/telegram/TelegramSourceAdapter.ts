@@ -102,6 +102,8 @@ export class TelegramSourceAdapter {
     const resources = this.extractResources(message.text || message.caption || '', message.entities || message.caption_entities);
 
     // 8. Construct provider-neutral ExternalCommunitySourceEvent
+    // Note: roadmapItemId and topicHint are Cohorta domain concerns and MUST NOT be
+    // inferred from Telegram chat titles or transport config.
     const sourceEvent: ExternalCommunitySourceEvent = {
       provider: 'telegram',
       externalEventId: String(update.update_id),
@@ -114,14 +116,15 @@ export class TelegramSourceAdapter {
       content: rawContent,
       timestamp: new Date(message.date * 1000),
       sequenceId: update.update_id,
-      roadmapItemId: config.defaultRoadmapItemId,
-      topicHint: message.chat.title,
+      roadmapItemId: undefined,
+      topicHint: undefined,
       resources: resources.length > 0 ? resources : undefined,
       metadata: {
         isForwarded: Boolean(message.forward_from || message.forward_from_chat),
         forwardedFrom: this.deriveForwardedFrom(message),
         editedAt: message.edit_date ? new Date(message.edit_date * 1000) : undefined,
         telegramChatType: message.chat.type,
+        telegramChatTitle: message.chat.title,
       },
     };
 

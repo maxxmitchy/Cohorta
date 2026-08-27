@@ -244,3 +244,29 @@ export const FIXTURE_TELEGRAM_UPDATE_STICKER_NO_TEXT: TelegramUpdate = {
     },
   },
 };
+
+/**
+ * Fixture K: Telegram group with chat title resembling a learning topic
+ * Verifies that chat.title is NOT automatically treated as a learning topic/topicHint.
+ */
+export const FIXTURE_TELEGRAM_UPDATE_TOPIC_RESEMBLING_CHAT_TITLE: TelegramUpdate = {
+  update_id: 10008,
+  message: {
+    message_id: 8,
+    from: {
+      id: 700104,
+      is_bot: false,
+      first_name: 'Dr. Sarah',
+      last_name: 'Chen',
+      username: 'sarah_c',
+    },
+    chat: {
+      id: TEST_TELEGRAM_CHAT_ID,
+      type: 'supergroup',
+      title: 'Advanced Reinforcement Learning & Policy Optimization',
+    },
+    date: 1708900600,
+    text: 'Welcome everyone! Today we discuss PPO convergence guarantees.',
+  },
+};
+
