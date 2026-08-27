@@ -14,11 +14,11 @@ interface Props {
 
 export function CommunityDetailVisitor({ community, onJoinSuccess }: Props) {
   const { session } = useAuth();
-  const { membershipService, paymentService } = useServices();
+  const { membershipService } = useServices();
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleJoin = async (planId?: string, isPaid: boolean = false, amount: number = 0, currency: string = 'USD') => {
+  const handleJoin = async (planId?: string) => {
     if (session.state !== 'authenticated' || !session.user) {
       setError('Please sign in to join this community.');
       return;
@@ -28,13 +28,6 @@ export function CommunityDetailVisitor({ community, onJoinSuccess }: Props) {
     setError(null);
 
     try {
-      if (isPaid) {
-        const paymentResult = await paymentService.processMockPayment(session.user.id, planId || 'paid', amount, currency);
-        if (!paymentResult.success) {
-          throw new Error(paymentResult.error || 'Payment failed.');
-        }
-      }
-
       await membershipService.joinCommunity(session.user.id, community.id, planId);
       if (onJoinSuccess) {
         onJoinSuccess();
@@ -171,7 +164,7 @@ export function CommunityDetailVisitor({ community, onJoinSuccess }: Props) {
             
             {community.hasFreeEntry ? (
               <button 
-                onClick={() => handleJoin('free')}
+                onClick={() => handleJoin(community.primaryPricing?.planId)}
                 disabled={isJoining}
                 className="flex h-14 w-full items-center justify-center rounded-xl bg-neutral-900 text-base font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100"
               >
@@ -179,7 +172,7 @@ export function CommunityDetailVisitor({ community, onJoinSuccess }: Props) {
               </button>
             ) : community.primaryPricing ? (
               <button 
-                onClick={() => handleJoin('primary', true, community.primaryPricing?.amount || 0, community.primaryPricing?.currency || 'USD')}
+                onClick={() => handleJoin(community.primaryPricing?.planId)}
                 disabled={isJoining}
                 className="flex h-14 w-full items-center justify-center rounded-xl bg-neutral-900 text-base font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100"
               >

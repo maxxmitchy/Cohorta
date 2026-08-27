@@ -1,12 +1,26 @@
-import { IPaymentService, PaymentResult } from '../../../core/services/IPaymentService';
+import { IPaymentService, PaymentRequest, PaymentResult } from '../../../core/services/IPaymentService';
 
 export class MockPaymentService implements IPaymentService {
-  async processMockPayment(userId: string, planId: string, amount: number, currency: string): Promise<PaymentResult> {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+  private shouldFailNext = false;
 
-    // Simple validation rule: if amount is negative or fake currency, fail.
-    if (amount < 0) {
+  /**
+   * Helper for testing/simulating payment failures in mock environments.
+   */
+  setFailNext(shouldFail: boolean) {
+    this.shouldFailNext = shouldFail;
+  }
+
+  async processPayment(request: PaymentRequest): Promise<PaymentResult> {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    if (this.shouldFailNext) {
+      this.shouldFailNext = false;
+      return { success: false, error: 'Payment declined: Card has insufficient funds.' };
+    }
+
+    // Simple validation rule: if amount is negative, fail.
+    if (request.amount < 0) {
       return { success: false, error: 'Invalid payment amount.' };
     }
 
@@ -16,3 +30,4 @@ export class MockPaymentService implements IPaymentService {
     };
   }
 }
+

@@ -40,9 +40,8 @@ const communityDetailService = new CommunityDetailService(detailQueryRepo);
 
 const mockAuthService = new MockAuthService();
 const mockMembershipRepo = new MockMembershipRepository();
-const membershipService = new MembershipService(mockMembershipRepo, mockMembershipRepo);
-
 const mockPaymentService = new MockPaymentService();
+const membershipService = new MembershipService(mockMembershipRepo, mockMembershipRepo, mockPaymentService);
 
 const defaultRegistry: ServiceRegistry = {
   discoveryService,

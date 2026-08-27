@@ -4,9 +4,17 @@ export interface PaymentResult {
   error?: string;
 }
 
+export interface PaymentRequest {
+  userId: string;
+  planId: string;
+  amount: number;
+  currency: string;
+}
+
 export interface IPaymentService {
   /**
-   * Processes a mock checkout payment.
+   * Processes a mock checkout payment with authoritative amount and currency.
    */
-  processMockPayment(userId: string, planId: string, amount: number, currency: string): Promise<PaymentResult>;
+  processPayment(request: PaymentRequest): Promise<PaymentResult>;
 }
+

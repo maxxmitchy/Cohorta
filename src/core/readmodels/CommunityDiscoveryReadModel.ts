@@ -2,6 +2,8 @@
  * Represents pricing in a currency-aware format for presentation.
  */
 export interface PricingDisplay {
+  planId?: string;
+  name?: string;
   type: 'free' | 'paid';
   amount?: number; // In smallest currency unit (e.g., cents)
   currency?: string; // ISO 4217 currency code (e.g., 'USD')

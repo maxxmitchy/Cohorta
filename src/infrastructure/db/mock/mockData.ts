@@ -245,6 +245,16 @@ export const mockPlans: MembershipPlan[] = [
     priceCurrency: 'EUR',
     interval: 'year',
     isActive: true,
+  },
+  {
+    id: 'plan_inactive',
+    communityId: 'com_1',
+    name: 'Legacy Alpha Plan',
+    type: 'subscription',
+    priceAmount: 500,
+    priceCurrency: 'USD',
+    interval: 'month',
+    isActive: false,
   }
 ];
 

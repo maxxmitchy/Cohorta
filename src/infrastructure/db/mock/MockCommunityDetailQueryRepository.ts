@@ -1,5 +1,6 @@
 import { ICommunityDetailQueryRepository } from '../../../core/repositories/ICommunityDetailQueryRepository';
 import { CommunityDetailReadModel } from '../../../core/readmodels/CommunityDetailReadModel';
+import { PricingDisplay } from '../../../core/readmodels/CommunityDiscoveryReadModel';
 import { mockCommunities, mockCategories, mockMetrics, mockPlans, mockRoadmapItems, mockUsers } from './mockData';
 import { determineDisplayPricing } from './pricingHelper';
 
@@ -31,26 +32,36 @@ export class MockCommunityDetailQueryRepository implements ICommunityDetailQuery
 
     const displayPricing = determineDisplayPricing(plans);
     const allPricingOptions = plans.map(p => ({
-      type: p.type as 'free' | 'paid',
+      planId: p.id,
+      name: p.name,
+      type: (p.type === 'free' ? 'free' : 'paid') as 'free' | 'paid',
       amount: p.priceAmount,
       currency: p.priceCurrency,
       interval: p.interval as 'month' | 'year' | 'lifetime' | undefined,
     }));
     
     // Select primary vs alternative
-    const hasFreeEntry = plans.some(p => p.type === 'free');
+    const freePlan = plans.find(p => p.type === 'free' && p.isActive);
+    const hasFreeEntry = !!freePlan;
     
-    // In our simplified mock logic, if it has free entry, primary is Free.
-    // Otherwise, primary is the displayPricing (which prefers monthly).
-    let primaryPricing: typeof displayPricing | undefined = undefined;
+    let primaryPricing: PricingDisplay | undefined = undefined;
     let alternativePricing = allPricingOptions;
     
-    if (hasFreeEntry) {
-       primaryPricing = { type: 'free' };
+    if (hasFreeEntry && freePlan) {
+       primaryPricing = {
+         planId: freePlan.id,
+         name: freePlan.name,
+         type: 'free'
+       };
        alternativePricing = allPricingOptions.filter(p => p.type !== 'free');
     } else if (allPricingOptions.length > 0) {
-       primaryPricing = displayPricing;
-       alternativePricing = allPricingOptions.filter(p => p !== primaryPricing && p.amount !== primaryPricing.amount);
+       const matchedPlan = plans.find(p => p.priceAmount === displayPricing.amount && p.priceCurrency === displayPricing.currency) || plans[0];
+       primaryPricing = {
+         planId: matchedPlan.id,
+         name: matchedPlan.name,
+         ...displayPricing
+       };
+       alternativePricing = allPricingOptions.filter(p => p.planId !== primaryPricing?.planId);
     }
 
     return {

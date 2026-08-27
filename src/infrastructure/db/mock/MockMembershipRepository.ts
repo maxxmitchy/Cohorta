@@ -1,14 +1,30 @@
 import { IMembershipQueryRepository } from '../../../core/repositories/IMembershipQueryRepository';
 import { IMembershipRepository } from '../../../core/repositories/IMembershipRepository';
 import { MemberCommunityReadModel } from '../../../core/readmodels/MemberCommunityReadModel';
-import { Membership } from '../../../core/domain/membership';
+import { Membership, MembershipPlan } from '../../../core/domain/membership';
+import { Community } from '../../../core/domain/community';
 import { LearningProgress } from '../../../core/domain/progress';
-import { mockCommunities, mockCategories, mockMetrics, mockRoadmapItems, mockMemberships, mockProgress } from './mockData';
+import { mockCommunities, mockCategories, mockMetrics, mockPlans, mockRoadmapItems, mockMemberships, mockProgress } from './mockData';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export class MockMembershipRepository implements IMembershipRepository, IMembershipQueryRepository {
   
+  async getCommunity(communityId: string): Promise<Community | null> {
+    await delay(50);
+    return mockCommunities.find(c => c.id === communityId) || null;
+  }
+
+  async getPlan(planId: string): Promise<MembershipPlan | null> {
+    await delay(50);
+    return mockPlans.find(p => p.id === planId) || null;
+  }
+
+  async getPlansForCommunity(communityId: string): Promise<MembershipPlan[]> {
+    await delay(50);
+    return mockPlans.filter(p => p.communityId === communityId);
+  }
+
   async getMembership(userId: string, communityId: string): Promise<Membership | null> {
     await delay(100);
     return mockMemberships.find(m => m.userId === userId && m.communityId === communityId) || null;
