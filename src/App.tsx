@@ -4,6 +4,8 @@ import Home from './ui/pages/Home';
 import CommunityDetail from './ui/pages/CommunityDetail';
 import LearnPlaceholder from './ui/pages/LearnPlaceholder';
 import Dashboard from './ui/pages/Dashboard';
+import { CommunityCatchUpView } from './ui/pages/community/CommunityCatchUpView';
+import { CommunityHistoryView } from './ui/pages/community/CommunityHistoryView';
 import { ServiceProvider } from './ui/context/ServiceContext';
 import { AuthProvider } from './ui/context/AuthContext';
 
@@ -18,6 +20,8 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/c/:communityId" element={<CommunityDetail />} />
+                <Route path="/c/:communityId/catch-up" element={<CommunityCatchUpView />} />
+                <Route path="/c/:communityId/history" element={<CommunityHistoryView />} />
                 <Route path="/c/:communityId/learn/:roadmapItemId" element={<LearnPlaceholder />} />
                 <Route path="/dashboard/*" element={<Dashboard />} />
               </Routes>

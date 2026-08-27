@@ -287,10 +287,36 @@ export const mockRoadmapItems: RoadmapItem[] = [
 
 
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 export const mockMemberships: Membership[] = [
-  { id: 'm1', userId: 'u_member_partial', communityId: 'com_1', planId: 'plan_1', role: 'member', joinedAt: now, status: 'active' },
-  { id: 'm2', userId: 'u_member_complete', communityId: 'com_1', planId: 'plan_1', role: 'member', joinedAt: now, status: 'active' },
-  { id: 'm3', userId: 'u_member_expired', communityId: 'com_1', planId: 'plan_1', role: 'member', joinedAt: now, status: 'past_due' },
+  { 
+    id: 'm1', 
+    userId: 'u_member_partial', 
+    communityId: 'com_1', 
+    planId: 'plan_1', 
+    role: 'member', 
+    joinedAt: new Date(Date.now() - 17 * ONE_DAY_MS), 
+    status: 'active' 
+  },
+  { 
+    id: 'm2', 
+    userId: 'u_member_complete', 
+    communityId: 'com_1', 
+    planId: 'plan_1', 
+    role: 'member', 
+    joinedAt: new Date(Date.now() - 42 * ONE_DAY_MS), 
+    status: 'active' 
+  },
+  { 
+    id: 'm3', 
+    userId: 'u_member_expired', 
+    communityId: 'com_1', 
+    planId: 'plan_1', 
+    role: 'member', 
+    joinedAt: new Date(Date.now() - 20 * ONE_DAY_MS), 
+    status: 'past_due' 
+  },
 ];
 
 export const mockProgress: LearningProgress[] = [

@@ -9,6 +9,12 @@ import { MockPaymentService } from '../../infrastructure/db/mock/MockPaymentServ
 import { MockDiscoveryQueryRepository } from '../../infrastructure/db/mock/MockDiscoveryQueryRepository';
 import { MockCommunityDetailQueryRepository } from '../../infrastructure/db/mock/MockCommunityDetailQueryRepository';
 import { MockMembershipRepository } from '../../infrastructure/db/mock/MockMembershipRepository';
+import { MockCommunityHistoryQueryRepository } from '../../infrastructure/db/mock/MockCommunityHistoryQueryRepository';
+import { MockCatchUpGenerator } from '../../infrastructure/ai/MockCatchUpGenerator';
+import { ICommunityHistoryService } from '../../core/services/ICommunityHistoryService';
+import { CommunityHistoryService } from '../../core/services/CommunityHistoryService';
+import { ICatchUpService } from '../../core/services/ICatchUpService';
+import { CatchUpService } from '../../core/services/CatchUpService';
 
 /**
  * ServiceRegistry acts as our temporary Composition Root.
@@ -27,6 +33,8 @@ export interface ServiceRegistry {
   authService: MockAuthService;
   membershipService: MembershipService;
   paymentService: IPaymentService;
+  communityHistoryService: ICommunityHistoryService;
+  catchUpService: ICatchUpService;
 }
 
 // Temporary manual DI wiring. 
@@ -43,12 +51,19 @@ const mockMembershipRepo = new MockMembershipRepository();
 const mockPaymentService = new MockPaymentService();
 const membershipService = new MembershipService(mockMembershipRepo, mockMembershipRepo, mockPaymentService);
 
+const historyQueryRepo = new MockCommunityHistoryQueryRepository();
+const catchUpGenerator = new MockCatchUpGenerator();
+const communityHistoryService = new CommunityHistoryService(historyQueryRepo, mockMembershipRepo);
+const catchUpService = new CatchUpService(historyQueryRepo, mockMembershipRepo, catchUpGenerator);
+
 const defaultRegistry: ServiceRegistry = {
   discoveryService,
   communityDetailService,
   authService: mockAuthService,
   membershipService,
   paymentService: mockPaymentService,
+  communityHistoryService,
+  catchUpService,
 };
 
 
