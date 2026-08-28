@@ -42,10 +42,10 @@ export class DurableFileCommunityIntegrationRepository implements ICommunityInte
   }
 
   async saveIntegration(integration: CommunityIntegration): Promise<void> {
-    const data = await this.storage.read();
     const key = `${integration.providerType}:${integration.providerCommunityId}`;
-    data.integrations[key] = { ...integration };
-    await this.storage.write(data);
+    await this.storage.mutate((data) => {
+      data.integrations[key] = { ...integration };
+    });
   }
 
   async getAllIntegrations(): Promise<CommunityIntegration[]> {
@@ -54,6 +54,8 @@ export class DurableFileCommunityIntegrationRepository implements ICommunityInte
   }
 
   async clear(): Promise<void> {
-    await this.storage.write({ integrations: {} });
+    await this.storage.mutate((data) => {
+      data.integrations = {};
+    });
   }
 }

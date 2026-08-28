@@ -1,5 +1,9 @@
 import * as path from 'path';
-import { IIngestionEventRepository } from '../../../core/repositories/IIngestionEventRepository';
+import {
+  IIngestionEventRepository,
+  IngestionClaimResult,
+  ClaimEventOptions,
+} from '../../../core/repositories/IIngestionEventRepository';
 import { IngestionEvent, IngestionStatus } from '../../../core/domain/ingestion';
 import { DurableFileStorage } from './DurableFileStorage';
 
@@ -34,33 +38,102 @@ export class DurableFileIngestionEventRepository implements IIngestionEventRepos
     return null;
   }
 
+  async claimEvent(
+    provider: string,
+    externalCommunityId: string,
+    externalEventId: string,
+    options?: ClaimEventOptions
+  ): Promise<IngestionClaimResult> {
+    const staleTimeoutMs = options?.staleTimeoutMs ?? 30_000;
+    const eventKey = `${provider}:${externalCommunityId}:${externalEventId}`;
+    const now = new Date();
+
+    return this.storage.mutate((data) => {
+      const existing = data.events[eventKey];
+
+      if (!existing) {
+        const sanitizedCommId = externalCommunityId.replace(/[^a-zA-Z0-9_]/g, '_');
+        const id = `ingest_${provider}_${sanitizedCommId}_${externalEventId}_${Date.now()}`;
+        const newEvent: IngestionEvent = {
+          id,
+          provider,
+          externalCommunityId,
+          externalEventId,
+          eventKey,
+          receivedAt: now,
+          lastAttemptAt: now,
+          status: 'processing',
+          retryCount: 1,
+        };
+        data.events[eventKey] = newEvent;
+        return { outcome: 'claimed', record: { ...newEvent } };
+      }
+
+      if (existing.status === 'processed') {
+        return { outcome: 'already_processed', record: { ...existing } };
+      }
+
+      if (existing.status === 'processing') {
+        const lastAttempt = existing.lastAttemptAt || existing.receivedAt;
+        const elapsed = now.getTime() - new Date(lastAttempt).getTime();
+
+        if (elapsed < staleTimeoutMs) {
+          // In-flight active processing by another worker/thread
+          return { outcome: 'in_flight', record: { ...existing } };
+        }
+
+        // Stale in-flight processing -> recover & reclaim
+        existing.status = 'processing';
+        existing.retryCount = (existing.retryCount || 0) + 1;
+        existing.lastAttemptAt = now;
+        return { outcome: 'recovered_stale', record: { ...existing } };
+      }
+
+      if (existing.status === 'failed') {
+        // Retry failed event
+        existing.status = 'processing';
+        existing.retryCount = (existing.retryCount || 0) + 1;
+        existing.lastAttemptAt = now;
+        existing.error = undefined;
+        return { outcome: 'claimed', record: { ...existing } };
+      }
+
+      // Existing status is 'received'
+      existing.status = 'processing';
+      existing.retryCount = (existing.retryCount || 0) + 1;
+      existing.lastAttemptAt = now;
+      return { outcome: 'claimed', record: { ...existing } };
+    });
+  }
+
   async recordReceived(
     provider: string,
     externalCommunityId: string,
     externalEventId: string
   ): Promise<IngestionEvent> {
-    const data = await this.storage.read();
     const eventKey = `${provider}:${externalCommunityId}:${externalEventId}`;
 
-    if (data.events[eventKey]) {
-      return { ...data.events[eventKey] };
-    }
+    return this.storage.mutate((data) => {
+      if (data.events[eventKey]) {
+        return { ...data.events[eventKey] };
+      }
 
-    const id = `ingest_${provider}_${externalCommunityId}_${externalEventId}_${Date.now()}`;
-    const event: IngestionEvent = {
-      id,
-      provider,
-      externalCommunityId,
-      externalEventId,
-      eventKey,
-      receivedAt: new Date(),
-      status: 'received',
-      retryCount: 0,
-    };
+      const sanitizedCommId = externalCommunityId.replace(/[^a-zA-Z0-9_]/g, '_');
+      const id = `ingest_${provider}_${sanitizedCommId}_${externalEventId}_${Date.now()}`;
+      const event: IngestionEvent = {
+        id,
+        provider,
+        externalCommunityId,
+        externalEventId,
+        eventKey,
+        receivedAt: new Date(),
+        status: 'received',
+        retryCount: 0,
+      };
 
-    data.events[eventKey] = event;
-    await this.storage.write(data);
-    return { ...event };
+      data.events[eventKey] = event;
+      return { ...event };
+    });
   }
 
   async updateStatus(
@@ -69,27 +142,30 @@ export class DurableFileIngestionEventRepository implements IIngestionEventRepos
     error?: string,
     processedAt?: Date
   ): Promise<IngestionEvent> {
-    const data = await this.storage.read();
-    let target: IngestionEvent | undefined;
+    return this.storage.mutate((data) => {
+      let target: IngestionEvent | undefined;
 
-    for (const event of Object.values(data.events)) {
-      if (event.id === id) {
-        target = event;
-        break;
+      for (const event of Object.values(data.events)) {
+        if (event.id === id) {
+          target = event;
+          break;
+        }
       }
-    }
 
-    if (!target) {
-      throw new Error(`IngestionEvent with id "${id}" not found`);
-    }
+      if (!target) {
+        throw new Error(`IngestionEvent with id "${id}" not found`);
+      }
 
-    target.status = status;
-    if (error !== undefined) target.error = error;
-    if (processedAt !== undefined) target.processedAt = processedAt;
-    if (status === 'processing') target.retryCount = (target.retryCount || 0) + 1;
+      target.status = status;
+      if (error !== undefined) target.error = error;
+      if (processedAt !== undefined) target.processedAt = processedAt;
+      if (status === 'processing') {
+        target.retryCount = (target.retryCount || 0) + 1;
+        target.lastAttemptAt = new Date();
+      }
 
-    await this.storage.write(data);
-    return { ...target };
+      return { ...target };
+    });
   }
 
   async getAllEvents(): Promise<IngestionEvent[]> {
@@ -98,6 +174,8 @@ export class DurableFileIngestionEventRepository implements IIngestionEventRepos
   }
 
   async clear(): Promise<void> {
-    await this.storage.write({ events: {} });
+    await this.storage.mutate((data) => {
+      data.events = {};
+    });
   }
 }

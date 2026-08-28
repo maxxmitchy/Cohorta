@@ -18,13 +18,15 @@ export interface CommunityEventIngestionOptions {
   defaultRoadmapItemId?: string;
   /** Multi-message consecutive window in ms (defaults to 5 minutes) */
   multiMessageWindowMs?: number;
+  /** Stale timeout in ms for in-flight processing recovery (defaults to 30s) */
+  staleTimeoutMs?: number;
 }
 
 /**
  * Provider-Agnostic Core Ingestion Service.
  *
  * Coordinates:
- * 1. Durable provider-scoped event idempotency.
+ * 1. Durable provider-scoped event idempotency via atomic event claiming.
  * 2. Explicit lifecycle state transitions (received -> processing -> processed / failed).
  * 3. Provider-to-Cohorta community mapping.
  * 4. Normalization and message lifecycle (creation, in-place edit, reply hierarchy, out-of-order reconciliation, deletion).
@@ -40,29 +42,25 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
 
   async ingestEvent(event: ExternalCommunitySourceEvent): Promise<SingleEventIngestionResult> {
     const eventKey = `${event.provider}:${event.externalCommunityId}:${event.externalEventId}`;
-    let ingestionRecord: IngestionEvent;
 
-    // 1. Check or create ingestion record
-    const existing = await this.ingestionRepo.findByEventKey(eventKey);
-    if (existing) {
-      if (existing.status === 'processed') {
-        return {
-          outcome: 'duplicate_ignored',
-          eventKey,
-          externalEventId: event.externalEventId,
-          ingestionRecord: existing,
-        };
-      }
-      // If previously failed or processing (e.g. crash recovery), allow retry
-      ingestionRecord = await this.ingestionRepo.updateStatus(existing.id, 'processing');
-    } else {
-      const created = await this.ingestionRepo.recordReceived(
-        event.provider,
-        event.externalCommunityId,
-        event.externalEventId
-      );
-      ingestionRecord = await this.ingestionRepo.updateStatus(created.id, 'processing');
+    // 1. Atomically claim ownership of the event
+    const claim = await this.ingestionRepo.claimEvent(
+      event.provider,
+      event.externalCommunityId,
+      event.externalEventId,
+      { staleTimeoutMs: this.options.staleTimeoutMs ?? 30_000 }
+    );
+
+    if (claim.outcome === 'already_processed' || claim.outcome === 'in_flight') {
+      return {
+        outcome: 'duplicate_ignored',
+        eventKey,
+        externalEventId: event.externalEventId,
+        ingestionRecord: claim.record,
+      };
     }
+
+    const ingestionRecord = claim.record;
 
     try {
       // 2. Resolve target Cohorta community ID

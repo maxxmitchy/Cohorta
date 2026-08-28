@@ -61,17 +61,17 @@ export class DurableFileCommunityHistoryRepository implements ICommunityHistoryR
   }
 
   async saveDiscussion(discussion: Discussion): Promise<void> {
-    const data = await this.storage.read();
-    data.discussions[discussion.id] = this.cloneDiscussion(discussion);
-    await this.storage.write(data);
+    await this.storage.mutate((data) => {
+      data.discussions[discussion.id] = this.cloneDiscussion(discussion);
+    });
   }
 
   async saveDiscussions(discussions: Discussion[]): Promise<void> {
-    const data = await this.storage.read();
-    for (const disc of discussions) {
-      data.discussions[disc.id] = this.cloneDiscussion(disc);
-    }
-    await this.storage.write(data);
+    await this.storage.mutate((data) => {
+      for (const disc of discussions) {
+        data.discussions[disc.id] = this.cloneDiscussion(disc);
+      }
+    });
   }
 
   async getAllDiscussions(communityId: string): Promise<Discussion[]> {
@@ -82,26 +82,26 @@ export class DurableFileCommunityHistoryRepository implements ICommunityHistoryR
   }
 
   async saveHistoricalTopic(topic: HistoricalTopicEvent): Promise<void> {
-    const data = await this.storage.read();
-    data.topics[topic.id] = { ...topic };
-    await this.storage.write(data);
+    await this.storage.mutate((data) => {
+      data.topics[topic.id] = { ...topic };
+    });
   }
 
   async saveHistoricalTopics(topics: HistoricalTopicEvent[]): Promise<void> {
-    const data = await this.storage.read();
-    for (const t of topics) {
-      data.topics[t.id] = { ...t };
-    }
-    await this.storage.write(data);
+    await this.storage.mutate((data) => {
+      for (const t of topics) {
+        data.topics[t.id] = { ...t };
+      }
+    });
   }
 
   async deleteDiscussion(communityId: string, discussionId: string): Promise<void> {
-    const data = await this.storage.read();
-    const disc = data.discussions[discussionId];
-    if (disc && disc.communityId === communityId) {
-      delete data.discussions[discussionId];
-      await this.storage.write(data);
-    }
+    await this.storage.mutate((data) => {
+      const disc = data.discussions[discussionId];
+      if (disc && disc.communityId === communityId) {
+        delete data.discussions[discussionId];
+      }
+    });
   }
 
   // --- ICommunityHistoryQueryRepository Implementation ---
@@ -199,7 +199,10 @@ export class DurableFileCommunityHistoryRepository implements ICommunityHistoryR
   }
 
   async clear(): Promise<void> {
-    await this.storage.write({ discussions: {}, topics: {} });
+    await this.storage.mutate((data) => {
+      data.discussions = {};
+      data.topics = {};
+    });
   }
 
   private cloneDiscussion(disc: Discussion): Discussion {

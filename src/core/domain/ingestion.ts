@@ -15,6 +15,8 @@ export interface IngestionEvent {
   receivedAt: Date;
   /** Timestamp when processing was finalized */
   processedAt?: Date;
+  /** Timestamp when the current/last processing attempt began */
+  lastAttemptAt?: Date;
   /** Explicit processing state */
   status: IngestionStatus;
   /** Detailed error message if status is 'failed' */
