@@ -37,6 +37,7 @@ export interface SourceProvenance {
   forwardedFrom?: string;
   hasMissingParent?: boolean;
   rawEventIds?: string[];
+  mergedExternalMessageIds?: string[];
 }
 
 export interface DiscussionAuthor {

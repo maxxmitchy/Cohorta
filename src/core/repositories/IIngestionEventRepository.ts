@@ -16,6 +16,21 @@ export interface ClaimEventOptions {
   staleTimeoutMs?: number;
 }
 
+export interface UpdateStatusOptions {
+  /**
+   * If supplied, the status will only be updated if the repository record's
+   * current ownerToken matches expectedOwnerToken. Otherwise, a StaleOwnershipError is thrown.
+   */
+  expectedOwnerToken?: string;
+}
+
+export class StaleOwnershipError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StaleOwnershipError';
+  }
+}
+
 export interface IIngestionEventRepository {
   /**
    * Find an ingestion event by its unique provider-scoped event key.
@@ -29,11 +44,11 @@ export interface IIngestionEventRepository {
 
   /**
    * Atomically claims ownership of an ingestion event:
-   * - If not found: creates record with status 'processing' and returns 'claimed'.
+   * - If not found: creates record with status 'processing', generates unique ownerToken, and returns 'claimed'.
    * - If already 'processed': returns 'already_processed'.
    * - If 'processing' and within stale timeout: returns 'in_flight' (prevents concurrent duplicate work).
-   * - If 'processing' and elapsed time exceeds staleTimeoutMs: transitions to 'processing', increments retryCount, and returns 'recovered_stale'.
-   * - If 'failed' or 'received': transitions to 'processing', increments retryCount, and returns 'claimed'.
+   * - If 'processing' and elapsed time exceeds staleTimeoutMs: transitions to 'processing', increments retryCount, assigns new ownerToken, and returns 'recovered_stale'.
+   * - If 'failed' or 'received': transitions to 'processing', increments retryCount, assigns new ownerToken, and returns 'claimed'.
    */
   claimEvent(
     provider: string,
@@ -53,12 +68,15 @@ export interface IIngestionEventRepository {
 
   /**
    * Update status, error message, and timestamps for an ingestion event.
+   * If options.expectedOwnerToken is provided and does not match the stored ownerToken,
+   * a StaleOwnershipError is thrown.
    */
   updateStatus(
     id: string,
     status: IngestionStatus,
     error?: string,
-    processedAt?: Date
+    processedAt?: Date,
+    options?: UpdateStatusOptions
   ): Promise<IngestionEvent>;
 
   /**

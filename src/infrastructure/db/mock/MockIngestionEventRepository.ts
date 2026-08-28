@@ -2,12 +2,18 @@ import {
   IIngestionEventRepository,
   IngestionClaimResult,
   ClaimEventOptions,
+  UpdateStatusOptions,
+  StaleOwnershipError,
 } from '../../../core/repositories/IIngestionEventRepository';
 import { IngestionEvent, IngestionStatus } from '../../../core/domain/ingestion';
 
 export class MockIngestionEventRepository implements IIngestionEventRepository {
   private events: Map<string, IngestionEvent> = new Map();
   private lock: Promise<void> = Promise.resolve();
+
+  private generateOwnerToken(eventId: string, retryCount: number): string {
+    return `own_${eventId}_att${retryCount}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
 
   private async runWithLock<T>(fn: () => T | Promise<T>): Promise<T> {
     let result!: T;
@@ -48,6 +54,7 @@ export class MockIngestionEventRepository implements IIngestionEventRepository {
       if (!existing) {
         const sanitizedCommId = externalCommunityId.replace(/[^a-zA-Z0-9_]/g, '_');
         const id = `ingest_${provider}_${sanitizedCommId}_${externalEventId}_${Date.now()}`;
+        const ownerToken = this.generateOwnerToken(id, 1);
         const newEvent: IngestionEvent = {
           id,
           provider,
@@ -56,6 +63,7 @@ export class MockIngestionEventRepository implements IIngestionEventRepository {
           eventKey,
           receivedAt: now,
           lastAttemptAt: now,
+          ownerToken,
           status: 'processing',
           retryCount: 1,
         };
@@ -76,25 +84,31 @@ export class MockIngestionEventRepository implements IIngestionEventRepository {
           return { outcome: 'in_flight', record: { ...existing } };
         }
 
-        // Stale in-flight -> recover & reclaim
+        // Stale in-flight -> recover & reclaim with new ownerToken
+        const newRetryCount = (existing.retryCount || 0) + 1;
         existing.status = 'processing';
-        existing.retryCount = (existing.retryCount || 0) + 1;
+        existing.retryCount = newRetryCount;
         existing.lastAttemptAt = now;
+        existing.ownerToken = this.generateOwnerToken(existing.id, newRetryCount);
         return { outcome: 'recovered_stale', record: { ...existing } };
       }
 
       if (existing.status === 'failed') {
+        const newRetryCount = (existing.retryCount || 0) + 1;
         existing.status = 'processing';
-        existing.retryCount = (existing.retryCount || 0) + 1;
+        existing.retryCount = newRetryCount;
         existing.lastAttemptAt = now;
+        existing.ownerToken = this.generateOwnerToken(existing.id, newRetryCount);
         existing.error = undefined;
         return { outcome: 'claimed', record: { ...existing } };
       }
 
       // Existing status is 'received'
+      const newRetryCount = (existing.retryCount || 0) + 1;
       existing.status = 'processing';
-      existing.retryCount = (existing.retryCount || 0) + 1;
+      existing.retryCount = newRetryCount;
       existing.lastAttemptAt = now;
+      existing.ownerToken = this.generateOwnerToken(existing.id, newRetryCount);
       return { outcome: 'claimed', record: { ...existing } };
     });
   }
@@ -133,7 +147,8 @@ export class MockIngestionEventRepository implements IIngestionEventRepository {
     id: string,
     status: IngestionStatus,
     error?: string,
-    processedAt?: Date
+    processedAt?: Date,
+    options?: UpdateStatusOptions
   ): Promise<IngestionEvent> {
     return this.runWithLock(async () => {
       let target: IngestionEvent | undefined;
@@ -146,6 +161,12 @@ export class MockIngestionEventRepository implements IIngestionEventRepository {
 
       if (!target) {
         throw new Error(`IngestionEvent with id "${id}" not found`);
+      }
+
+      if (options?.expectedOwnerToken && target.ownerToken !== options.expectedOwnerToken) {
+        throw new StaleOwnershipError(
+          `Cannot update event "${id}" status to "${status}": expected ownerToken "${options.expectedOwnerToken}", but current ownerToken is "${target.ownerToken}". Processing was superseded or recovered by another worker.`
+        );
       }
 
       target.status = status;

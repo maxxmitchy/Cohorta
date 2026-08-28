@@ -52,7 +52,8 @@ export class DurableFileCommunityHistoryRepository implements ICommunityHistoryR
         disc.sourceProvenance &&
         disc.sourceProvenance.provider === provider &&
         disc.sourceProvenance.externalCommunityId === externalCommunityId &&
-        disc.sourceProvenance.externalMessageId === externalMessageId
+        (disc.sourceProvenance.externalMessageId === externalMessageId ||
+          disc.sourceProvenance.mergedExternalMessageIds?.includes(externalMessageId))
       ) {
         return this.cloneDiscussion(disc);
       }
@@ -213,6 +214,9 @@ export class DurableFileCommunityHistoryRepository implements ICommunityHistoryR
         ? {
             ...disc.sourceProvenance,
             rawEventIds: disc.sourceProvenance.rawEventIds ? [...disc.sourceProvenance.rawEventIds] : undefined,
+            mergedExternalMessageIds: disc.sourceProvenance.mergedExternalMessageIds
+              ? [...disc.sourceProvenance.mergedExternalMessageIds]
+              : undefined,
           }
         : undefined,
       resources: disc.resources ? disc.resources.map((r) => ({ ...r })) : [],

@@ -90,12 +90,13 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
         }
       }
 
-      // 4. Mark ingestion as successfully processed
+      // 4. Mark ingestion as successfully processed with ownership token verification
       const updatedRecord = await this.ingestionRepo.updateStatus(
         ingestionRecord.id,
         'processed',
         undefined,
-        new Date()
+        new Date(),
+        { expectedOwnerToken: ingestionRecord.ownerToken }
       );
 
       return {
@@ -107,11 +108,19 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
       };
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      const failedRecord = await this.ingestionRepo.updateStatus(
-        ingestionRecord.id,
-        'failed',
-        errorMessage
-      );
+      let failedRecord = ingestionRecord;
+      try {
+        failedRecord = await this.ingestionRepo.updateStatus(
+          ingestionRecord.id,
+          'failed',
+          errorMessage,
+          undefined,
+          { expectedOwnerToken: ingestionRecord.ownerToken }
+        );
+      } catch (statusErr) {
+        // If ownership was superseded, statusErr is expected (StaleOwnershipError)
+        console.warn(`[IngestionService] Failed to set failure status for event ${ingestionRecord.id}:`, statusErr);
+      }
 
       return {
         outcome: 'failed',
@@ -163,7 +172,7 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
     const roadmapItemId = event.roadmapItemId || defaultRoadmapItemId;
     const topicTitle = event.topicHint || 'General';
 
-    // 1. Check if discussion already exists (e.g. previously arrived edit or idempotency edge)
+    // 1. Check if discussion already exists (e.g. previously arrived create, edit, or merged message)
     const existing = await this.historyRepo.findDiscussionByProvenance(
       event.provider,
       event.externalCommunityId,
@@ -171,10 +180,17 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
     );
 
     if (existing) {
-      existing.content = rawContent;
-      existing.title = CommunityHistoryNormalizer.deriveTitle(rawContent, topicTitle);
-      existing.type = classification.type;
-      existing.signalQuality = classification.signalQuality;
+      // Check if this event was already merged as a consecutive message
+      const isMerged = existing.sourceProvenance?.mergedExternalMessageIds?.includes(event.externalMessageId);
+
+      if (!isMerged) {
+        // Direct root discussion update (e.g. retry or out-of-order re-arrival)
+        existing.content = rawContent;
+        existing.title = CommunityHistoryNormalizer.deriveTitle(rawContent, topicTitle);
+        existing.type = classification.type;
+        existing.signalQuality = classification.signalQuality;
+      }
+
       existing.sourceProvenance = existing.sourceProvenance || {
         provider: event.provider,
         externalCommunityId: event.externalCommunityId,
@@ -183,9 +199,14 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
         ingestedAt: new Date(),
         rawEventIds: [event.externalEventId],
       };
-      if (!existing.sourceProvenance.rawEventIds?.includes(event.externalEventId)) {
-        existing.sourceProvenance.rawEventIds?.push(event.externalEventId);
+
+      if (!existing.sourceProvenance.rawEventIds) {
+        existing.sourceProvenance.rawEventIds = [];
       }
+      if (!existing.sourceProvenance.rawEventIds.includes(event.externalEventId)) {
+        existing.sourceProvenance.rawEventIds.push(event.externalEventId);
+      }
+
       await this.historyRepo.saveDiscussion(existing);
       affectedDiscussions.push(existing);
       return;
@@ -255,7 +276,22 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
         sourceRoadmapItemId: lastDiscussion.roadmapItemId,
       }));
       lastDiscussion.resources = [...(lastDiscussion.resources || []), ...additionalResources];
-      lastDiscussion.sourceProvenance?.rawEventIds?.push(event.externalEventId);
+      
+      if (lastDiscussion.sourceProvenance) {
+        if (!lastDiscussion.sourceProvenance.rawEventIds) {
+          lastDiscussion.sourceProvenance.rawEventIds = [];
+        }
+        if (!lastDiscussion.sourceProvenance.rawEventIds.includes(event.externalEventId)) {
+          lastDiscussion.sourceProvenance.rawEventIds.push(event.externalEventId);
+        }
+        if (!lastDiscussion.sourceProvenance.mergedExternalMessageIds) {
+          lastDiscussion.sourceProvenance.mergedExternalMessageIds = [];
+        }
+        if (!lastDiscussion.sourceProvenance.mergedExternalMessageIds.includes(event.externalMessageId)) {
+          lastDiscussion.sourceProvenance.mergedExternalMessageIds.push(event.externalMessageId);
+        }
+      }
+
       if (lastDiscussion.title.length < 20) {
         lastDiscussion.title = CommunityHistoryNormalizer.deriveTitle(
           lastDiscussion.content,

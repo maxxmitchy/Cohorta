@@ -17,6 +17,8 @@ export interface IngestionEvent {
   processedAt?: Date;
   /** Timestamp when the current/last processing attempt began */
   lastAttemptAt?: Date;
+  /** Explicit ownership/attempt token to prevent stale processors from committing after recovery */
+  ownerToken?: string;
   /** Explicit processing state */
   status: IngestionStatus;
   /** Detailed error message if status is 'failed' */

@@ -7,6 +7,7 @@ import { validateTelegramConfig } from './TelegramConfig';
 import { TelegramSourceAdapter } from './TelegramSourceAdapter';
 import { validateTelegramWebhookPayload } from './TelegramPayloadValidator';
 import { CommunityEventIngestionService } from '../../../core/services/CommunityEventIngestionService';
+import { StaleOwnershipError } from '../../../core/repositories/IIngestionEventRepository';
 import { DurableFileIngestionEventRepository } from '../../db/durable/DurableFileIngestionEventRepository';
 import { DurableFileCommunityHistoryRepository } from '../../db/durable/DurableFileCommunityHistoryRepository';
 import { DurableFileCommunityIntegrationRepository } from '../../db/durable/DurableFileCommunityIntegrationRepository';
@@ -15,6 +16,7 @@ import { MockIngestionEventRepository } from '../../db/mock/MockIngestionEventRe
 import { MockCommunityHistoryRepository } from '../../db/mock/MockCommunityHistoryRepository';
 import { MockCommunityIntegrationRepository } from '../../db/mock/MockCommunityIntegrationRepository';
 import { MockMembershipRepository } from '../../db/mock/MockMembershipRepository';
+import { IMembershipRepository } from '../../../core/repositories/IMembershipRepository';
 import { CommunityHistoryService } from '../../../core/services/CommunityHistoryService';
 import { ExternalCommunitySourceEvent } from '../../../core/source/ExternalCommunitySourceEvent';
 import {
@@ -99,6 +101,89 @@ describe('Phase 13.4 Production Readiness Audit: Telegram Ingestion & Persistenc
       const allDiscussions = await historyRepo.getAllDiscussions('com_defi_builders');
       expect(allDiscussions.length).toBe(1);
       expect(allDiscussions[0].content).toBe('Concurrent ingestion test message');
+    });
+
+    it('1b. High Concurrency: 50 simultaneous claimEvent calls on DurableFileIngestionEventRepository yield exactly 1 claimed and 49 in_flight', async () => {
+      const repo = new DurableFileIngestionEventRepository(ingestionFile);
+      const promises = Array.from({ length: 50 }, () =>
+        repo.claimEvent('telegram', '-100888', 'evt_high_concurrency_50')
+      );
+
+      const claimResults = await Promise.all(promises);
+      const claimed = claimResults.filter((r) => r.outcome === 'claimed');
+      const inFlight = claimResults.filter((r) => r.outcome === 'in_flight');
+
+      expect(claimed.length).toBe(1);
+      expect(inFlight.length).toBe(49);
+      expect(claimed[0].record.status).toBe('processing');
+      expect(claimed[0].record.ownerToken).toBeDefined();
+    });
+
+    it('1c. High Concurrency on Already-Processed: 50 simultaneous claimEvent calls all return already_processed', async () => {
+      const repo = new DurableFileIngestionEventRepository(ingestionFile);
+      const initial = await repo.claimEvent('telegram', '-100888', 'evt_already_proc_50');
+      await repo.updateStatus(initial.record.id, 'processed', undefined, new Date());
+
+      const promises = Array.from({ length: 50 }, () =>
+        repo.claimEvent('telegram', '-100888', 'evt_already_proc_50')
+      );
+
+      const claimResults = await Promise.all(promises);
+      expect(claimResults.every((r) => r.outcome === 'already_processed')).toBe(true);
+    });
+
+    it('1d. High Concurrency on Stale In-Flight: 50 simultaneous claims yield exactly 1 recovered_stale and 49 in_flight', async () => {
+      const repo = new DurableFileIngestionEventRepository(ingestionFile);
+      const initial = await repo.claimEvent('telegram', '-100888', 'evt_stale_50', { staleTimeoutMs: 10 });
+      const oldToken = initial.record.ownerToken;
+
+      await new Promise((r) => setTimeout(r, 25)); // elapse beyond stale timeout
+
+      const promises = Array.from({ length: 50 }, () =>
+        repo.claimEvent('telegram', '-100888', 'evt_stale_50', { staleTimeoutMs: 10 })
+      );
+
+      const claimResults = await Promise.all(promises);
+      const recovered = claimResults.filter((r) => r.outcome === 'recovered_stale');
+      const inFlight = claimResults.filter((r) => r.outcome === 'in_flight');
+
+      expect(recovered.length).toBe(1);
+      expect(inFlight.length).toBe(49);
+      expect(recovered[0].record.ownerToken).not.toBe(oldToken);
+    });
+
+    it('1e. Ownership Token Invalidation: Superseded stale processor cannot commit updateStatus after recovery worker claims', async () => {
+      const repo = new DurableFileIngestionEventRepository(ingestionFile);
+
+      // Worker 1 claims event
+      const claim1 = await repo.claimEvent('telegram', '-100888', 'evt_owner_token_race', { staleTimeoutMs: 10 });
+      const worker1Token = claim1.record.ownerToken!;
+
+      // Simulate worker 1 hanging while time elapses
+      await new Promise((r) => setTimeout(r, 25));
+
+      // Worker 2 re-claims event via stale recovery and receives NEW owner token
+      const claim2 = await repo.claimEvent('telegram', '-100888', 'evt_owner_token_race', { staleTimeoutMs: 10 });
+      expect(claim2.outcome).toBe('recovered_stale');
+      const worker2Token = claim2.record.ownerToken!;
+      expect(worker2Token).not.toBe(worker1Token);
+
+      // Delayed Worker 1 attempts to finalize processing using its obsolete worker1Token -> REJECTED
+      await expect(
+        repo.updateStatus(claim1.record.id, 'processed', undefined, new Date(), {
+          expectedOwnerToken: worker1Token,
+        })
+      ).rejects.toThrow(StaleOwnershipError);
+
+      // Worker 2 finalizes processing with valid worker2Token -> SUCCEEDS
+      const finalResult = await repo.updateStatus(
+        claim2.record.id,
+        'processed',
+        undefined,
+        new Date(),
+        { expectedOwnerToken: worker2Token }
+      );
+      expect(finalResult.status).toBe('processed');
     });
 
     it('2. Atomic claim outcome transitions in MockIngestionEventRepository', async () => {
@@ -465,6 +550,70 @@ describe('Phase 13.4 Production Readiness Audit: Telegram Ingestion & Persistenc
       expect(discussions[0].replies.length).toBe(1);
       expect(discussions[0].replies[0].content).toBe('Reply waiting across restart');
     });
+
+    it('12b. Consecutive message merging idempotency: replay of merged message does not duplicate content', async () => {
+      const ingestionRepo = new DurableFileIngestionEventRepository(ingestionFile);
+      const historyRepo = new DurableFileCommunityHistoryRepository(historyFile, false);
+      const integrationRepo = new DurableFileCommunityIntegrationRepository(integrationFile, [
+        {
+          id: 'int_merge_test',
+          communityId: 'com_merge_test',
+          providerType: 'telegram',
+          providerCommunityId: '-100999000',
+          isActive: true,
+          metadata: {},
+          createdAt: new Date(),
+        },
+      ]);
+      const service = new CommunityEventIngestionService(ingestionRepo, historyRepo, integrationRepo, {
+        multiMessageWindowMs: 5 * 60 * 1000,
+      });
+
+      // Message 1 from Alice
+      const msg1: ExternalCommunitySourceEvent = {
+        provider: 'telegram',
+        externalCommunityId: '-100999000',
+        externalEventId: 'upd_seq_1',
+        externalMessageId: 'msg_seq_1',
+        eventType: 'message_created',
+        author: { externalUserId: 'user_alice', displayName: 'Alice' },
+        content: 'Part 1: Overview of zero-knowledge proofs.',
+        timestamp: new Date('2026-08-28T11:00:00Z'),
+      };
+      await service.ingestEvent(msg1);
+
+      // Message 2 from Alice (sent 30s later, within 5 min window)
+      const msg2: ExternalCommunitySourceEvent = {
+        provider: 'telegram',
+        externalCommunityId: '-100999000',
+        externalEventId: 'upd_seq_2',
+        externalMessageId: 'msg_seq_2',
+        eventType: 'message_created',
+        author: { externalUserId: 'user_alice', displayName: 'Alice' },
+        content: 'Part 2: Practical implementation with Circom.',
+        timestamp: new Date('2026-08-28T11:00:30Z'),
+      };
+      await service.ingestEvent(msg2);
+
+      let discussions = await historyRepo.getAllDiscussions('com_merge_test');
+      expect(discussions.length).toBe(1);
+      expect(discussions[0].content).toContain('Part 1: Overview of zero-knowledge proofs.');
+      expect(discussions[0].content).toContain('Part 2: Practical implementation with Circom.');
+      expect(discussions[0].sourceProvenance?.mergedExternalMessageIds).toContain('msg_seq_2');
+
+      // Replay / retry of msg2 after partial recovery
+      const msg2Replay: ExternalCommunitySourceEvent = {
+        ...msg2,
+        externalEventId: 'upd_seq_2_retry', // New event ID simulating webhook redelivery
+      };
+      await service.ingestEvent(msg2Replay);
+
+      discussions = await historyRepo.getAllDiscussions('com_merge_test');
+      expect(discussions.length).toBe(1);
+      // Content should NOT be duplicated again
+      const occurrences = (discussions[0].content.match(/Part 2: Practical implementation/g) || []).length;
+      expect(occurrences).toBe(1);
+    });
   });
 
   // --- 13. CROSS-COMMUNITY IDENTITY ISOLATION ---
@@ -576,6 +725,24 @@ describe('Phase 13.4 Production Readiness Audit: Telegram Ingestion & Persistenc
       await storage.write({ value: 'v3_recovered' });
       const current = await storage.read();
       expect(current.value).toBe('v3_recovered');
+    });
+
+    it('15b. Mutate failure invalidates in-memory cache and prevents dirty state retention', async () => {
+      const testFile = path.join(tempDir, 'mutate_cache_test.json');
+      const storage = new DurableFileStorage<{ count: number }>(testFile, () => ({ count: 10 }));
+      await storage.write({ count: 20 });
+
+      // Execute a mutator that modifies the in-memory object then throws
+      await expect(
+        storage.mutate((data) => {
+          data.count = 999; // dirty mutation
+          throw new Error('Mutation aborted halfway');
+        })
+      ).rejects.toThrow('Mutation aborted halfway');
+
+      // Subsequent read MUST return persisted state (count: 20), not dirty state (999)
+      const dataAfter = await storage.read();
+      expect(dataAfter.count).toBe(20);
     });
   });
 
@@ -703,13 +870,13 @@ describe('Phase 13.4 Production Readiness Audit: Telegram Ingestion & Persistenc
         async getCommunity(communityId: string) {
           return {
             id: communityId,
-            title: 'ZK Research Cohort',
-            tagline: 'Deep dive into zero knowledge proofs',
+            name: 'ZK Research Cohort',
             description: 'Advanced cryptography group',
-            category: 'Tech',
+            categoryId: 'cat_tech',
             creatorId: 'user_creator_e2e',
-            pricing: { model: 'free' as const },
-            stats: { memberCount: 1, activeMembersWeekly: 1, signalRating: 5.0, discussionsCount: 1, resourcesCount: 0, completedGoalsCount: 0 },
+            skillLevel: 'Advanced',
+            status: 'active',
+            tags: ['zk', 'crypto'],
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -721,12 +888,15 @@ describe('Phase 13.4 Production Readiness Audit: Telegram Ingestion & Persistenc
             id: 'mem_e2e',
             userId,
             communityId,
+            planId: 'plan_free',
+            role: 'member',
             status: 'active' as const,
             joinedAt: new Date(),
           };
         },
         async createMembership() {},
         async initializeProgress() {},
+        async getRoadmapItemIds() { return []; },
       };
 
       const ingestionService = new CommunityEventIngestionService(ingestionRepo, historyRepo, integrationRepo);

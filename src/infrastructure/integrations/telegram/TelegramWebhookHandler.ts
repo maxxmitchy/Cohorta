@@ -36,6 +36,17 @@ export class TelegramWebhookHandler {
    * Fallback in-memory set when no ingestion service is injected (e.g. legacy tests)
    */
   private readonly processedEventIds = new Set<string>();
+  private readonly maxProcessedEventHistory = 5000;
+
+  private recordFallbackProcessed(eventKey: string): void {
+    if (this.processedEventIds.size >= this.maxProcessedEventHistory) {
+      const oldestKey = this.processedEventIds.values().next().value;
+      if (oldestKey) {
+        this.processedEventIds.delete(oldestKey);
+      }
+    }
+    this.processedEventIds.add(eventKey);
+  }
 
   constructor(
     config: TelegramConfig,
@@ -164,7 +175,7 @@ export class TelegramWebhookHandler {
       };
     }
 
-    this.processedEventIds.add(eventKey);
+    this.recordFallbackProcessed(eventKey);
 
     // Deliver to Event Sink (if registered)
     if (this.eventSink) {

@@ -47,9 +47,14 @@ export class DurableFileStorage<T> {
 
     const executeMutation = async () => {
       const data = await this.readDirectly();
-      result = await mutator(data);
-      this.inMemoryCache = data;
-      await this.writeDirectly(data);
+      try {
+        result = await mutator(data);
+        this.inMemoryCache = data;
+        await this.writeDirectly(data);
+      } catch (err) {
+        this.inMemoryCache = null;
+        throw err;
+      }
     };
 
     const queuedTask = this.writeQueue
