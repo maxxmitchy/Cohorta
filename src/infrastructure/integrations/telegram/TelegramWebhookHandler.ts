@@ -4,6 +4,7 @@ import { TelegramConfig } from './TelegramConfig';
 import { validateTelegramWebhookPayload } from './TelegramPayloadValidator';
 import { TelegramSourceAdapter } from './TelegramSourceAdapter';
 import { ExternalCommunitySourceEvent } from '../../../core/source/ExternalCommunitySourceEvent';
+import { ICommunityEventIngestionService } from '../../../core/services/ICommunityEventIngestionService';
 
 export interface TelegramWebhookProcessResult {
   statusCode: number;
@@ -25,22 +26,29 @@ export type TelegramEventSink = (event: ExternalCommunitySourceEvent) => Promise
  * 2. Validates incoming payload schema (fail-fast, no blind casts, no data fabrication).
  * 3. Transforms valid updates into ExternalCommunitySourceEvent via TelegramSourceAdapter.
  * 4. Filters out private chats and unauthorized chats without application errors.
- * 5. Deduplicates retried webhooks via in-memory tracking (Phase 13.2 transient boundary).
+ * 5. Delegates idempotent ingestion to provider-agnostic ICommunityEventIngestionService.
  */
 export class TelegramWebhookHandler {
   private readonly config: TelegramConfig;
+  private readonly ingestionService?: ICommunityEventIngestionService;
   private readonly eventSink?: TelegramEventSink;
   /**
-   * In-Memory Idempotency Store (Phase 13.2)
-   *
-   * NOTE: This set is transient and resets on process restarts.
-   * This is the designated insertion point for future durable persistence (e.g. EventStore/Postgres/Redis/Queue).
+   * Fallback in-memory set when no ingestion service is injected (e.g. legacy tests)
    */
   private readonly processedEventIds = new Set<string>();
 
-  constructor(config: TelegramConfig, eventSink?: TelegramEventSink) {
+  constructor(
+    config: TelegramConfig,
+    ingestionServiceOrSink?: ICommunityEventIngestionService | TelegramEventSink,
+    eventSink?: TelegramEventSink
+  ) {
     this.config = config;
-    this.eventSink = eventSink;
+    if (typeof ingestionServiceOrSink === 'function') {
+      this.eventSink = ingestionServiceOrSink;
+    } else {
+      this.ingestionService = ingestionServiceOrSink;
+      this.eventSink = eventSink;
+    }
   }
 
   /**
@@ -106,7 +114,47 @@ export class TelegramWebhookHandler {
       };
     }
 
-    // 4. In-Memory Idempotency Check
+    // 4. Delegate to Ingestion Service (if configured) or Fallback In-Memory Idempotency
+    if (this.ingestionService) {
+      try {
+        const ingestionResult = await this.ingestionService.ingestEvent(event);
+
+        if (this.eventSink) {
+          await this.eventSink(event);
+        }
+
+        if (ingestionResult.outcome === 'duplicate_ignored') {
+          return {
+            statusCode: 200,
+            body: { status: 'ok', action: 'duplicate_ignored', eventId: event.externalEventId },
+            event,
+          };
+        }
+
+        if (ingestionResult.outcome === 'failed') {
+          return {
+            statusCode: 500,
+            body: { error: 'Internal Server Error', reason: ingestionResult.error },
+            event,
+          };
+        }
+
+        return {
+          statusCode: 200,
+          body: { status: 'ok', action: 'processed', eventId: event.externalEventId },
+          event,
+        };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          statusCode: 500,
+          body: { error: 'Internal Server Error', reason: message },
+          event,
+        };
+      }
+    }
+
+    // Fallback in-memory idempotency check (for standalone/legacy tests)
     const eventKey = `${event.provider}:${event.externalCommunityId}:${event.externalEventId}`;
     if (this.processedEventIds.has(eventKey)) {
       return {
@@ -118,7 +166,7 @@ export class TelegramWebhookHandler {
 
     this.processedEventIds.add(eventKey);
 
-    // 5. Deliver to Event Sink (if registered)
+    // Deliver to Event Sink (if registered)
     if (this.eventSink) {
       try {
         await this.eventSink(event);

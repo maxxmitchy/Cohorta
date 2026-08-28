@@ -380,4 +380,54 @@ describe('TelegramWebhookHandler (Phase 13.2 Webhook Ingestion Boundary)', () =>
       }
     });
   });
+
+  describe('6. End-to-End Pipeline with ICommunityEventIngestionService (Phase 13.3)', () => {
+    it('TEST 20: Ingests update via TelegramWebhookHandler into durable repository', async () => {
+      const { MockIngestionEventRepository } = await import('../../db/mock/MockIngestionEventRepository');
+      const { MockCommunityHistoryRepository } = await import('../../db/mock/MockCommunityHistoryRepository');
+      const { MockCommunityIntegrationRepository } = await import('../../db/mock/MockCommunityIntegrationRepository');
+      const { CommunityEventIngestionService } = await import('../../../core/services/CommunityEventIngestionService');
+
+      const ingestionRepo = new MockIngestionEventRepository();
+      const historyRepo = new MockCommunityHistoryRepository(false);
+      const integrationRepo = new MockCommunityIntegrationRepository([
+        {
+          id: 'int_tg_test',
+          communityId: 'com_ai_builders',
+          providerType: 'telegram',
+          providerCommunityId: TEST_CHAT_ID_STRING,
+          isActive: true,
+          metadata: { credentialsRef: 'env:TELEGRAM_BOT_TOKEN', syncIntervalMinutes: 5 },
+          createdAt: new Date(),
+        },
+      ]);
+
+      const ingestionService = new CommunityEventIngestionService(ingestionRepo, historyRepo, integrationRepo);
+      const handler = new TelegramWebhookHandler(config, ingestionService);
+
+      // Ingest update 001
+      const res1 = await handler.processWebhook(
+        { 'x-telegram-bot-api-secret-token': TEST_SECRET },
+        FIXTURE_TELEGRAM_UPDATE_001
+      );
+
+      expect(res1.statusCode).toBe(200);
+      expect(res1.body.action).toBe('processed');
+
+      // Verify stored in history repository
+      const discussions = await historyRepo.getAllDiscussions('com_ai_builders');
+      expect(discussions).toHaveLength(1);
+      expect(discussions[0].content).toBe('Cohorta integration test 001');
+
+      // Ingest duplicate
+      const res2 = await handler.processWebhook(
+        { 'x-telegram-bot-api-secret-token': TEST_SECRET },
+        FIXTURE_TELEGRAM_UPDATE_001
+      );
+
+      expect(res2.statusCode).toBe(200);
+      expect(res2.body.action).toBe('duplicate_ignored');
+      expect(await historyRepo.getAllDiscussions('com_ai_builders')).toHaveLength(1);
+    });
+  });
 });

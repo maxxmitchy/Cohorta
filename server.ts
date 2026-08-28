@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { TelegramWebhookHandler } from './src/infrastructure/integrations/telegram/TelegramWebhookHandler';
 import { loadTelegramConfigFromEnv } from './src/infrastructure/integrations/telegram/TelegramConfig';
+import { DurableFileIngestionEventRepository } from './src/infrastructure/db/durable/DurableFileIngestionEventRepository';
+import { DurableFileCommunityHistoryRepository } from './src/infrastructure/db/durable/DurableFileCommunityHistoryRepository';
+import { DurableFileCommunityIntegrationRepository } from './src/infrastructure/db/durable/DurableFileCommunityIntegrationRepository';
+import { CommunityEventIngestionService } from './src/core/services/CommunityEventIngestionService';
 
 dotenv.config();
 
@@ -11,6 +15,12 @@ export async function createServerApp() {
   const app = express();
 
   app.use(express.json());
+
+  // Composition Root: Durable Storage & Ingestion Pipeline
+  const ingestionRepo = new DurableFileIngestionEventRepository();
+  const historyRepo = new DurableFileCommunityHistoryRepository();
+  const integrationRepo = new DurableFileCommunityIntegrationRepository();
+  const ingestionService = new CommunityEventIngestionService(ingestionRepo, historyRepo, integrationRepo);
 
   // API Health Check
   app.get('/api/health', (_req, res) => {
@@ -29,7 +39,7 @@ export async function createServerApp() {
         return;
       }
 
-      const handler = new TelegramWebhookHandler(config);
+      const handler = new TelegramWebhookHandler(config, ingestionService);
       await handler.handleExpress(req, res);
     } catch {
       res.status(500).json({ error: 'Internal Server Error' });

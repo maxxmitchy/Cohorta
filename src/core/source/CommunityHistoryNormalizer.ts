@@ -385,7 +385,7 @@ export class CommunityHistoryNormalizer {
     return normalizedDiscussions;
   }
 
-  private static normalizeAuthor(authorRef?: ExternalAuthorRef): DiscussionAuthor {
+  public static normalizeAuthor(authorRef?: ExternalAuthorRef): DiscussionAuthor {
     if (!authorRef) {
       return {
         id: 'unknown_user',
@@ -403,7 +403,7 @@ export class CommunityHistoryNormalizer {
     };
   }
 
-  private static deriveTitle(content: string, topicHint?: string): string {
+  public static deriveTitle(content: string, topicHint?: string): string {
     const trimmed = content.trim();
     if (!trimmed) {
       return topicHint ? `Update on ${topicHint}` : 'Community Update';
@@ -423,7 +423,7 @@ export class CommunityHistoryNormalizer {
     return `${firstLine.slice(0, 77)}...`;
   }
 
-  private static classifyContent(
+  public static classifyContent(
     content: string,
     eventType: string
   ): { type: DiscussionType; signalQuality: SignalQuality } {
@@ -465,7 +465,7 @@ export class CommunityHistoryNormalizer {
     return { type: 'discussion', signalQuality: 'normal' };
   }
 
-  private static extractResources(
+  public static extractResources(
     provider: string,
     messageId: string,
     content: string,
