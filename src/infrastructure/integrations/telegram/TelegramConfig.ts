@@ -17,6 +17,8 @@ export interface TelegramConfig {
   authorizedChatIds: Set<string>;
   /** Base URL for Telegram Bot API (defaults to https://api.telegram.org) */
   apiBaseUrl?: string;
+  /** Secret token used to verify inbound webhook requests from Telegram */
+  webhookSecret?: string;
 }
 
 const NUMERIC_CHAT_ID_PATTERN = /^-?\d+$/;
@@ -47,12 +49,14 @@ export function validateTelegramConfig(config: Partial<TelegramConfig>): Telegra
     botToken: config.botToken?.trim() || undefined,
     authorizedChatIds,
     apiBaseUrl: config.apiBaseUrl?.trim() || 'https://api.telegram.org',
+    webhookSecret: config.webhookSecret?.trim() || undefined,
   };
 }
 
 export function loadTelegramConfigFromEnv(env: Record<string, string | undefined> = process.env): TelegramConfig {
   const botToken = env.TELEGRAM_BOT_TOKEN?.trim() || undefined;
   const rawAllowedChats = env.TELEGRAM_ALLOWED_CHAT_IDS?.trim();
+  const webhookSecret = env.TELEGRAM_WEBHOOK_SECRET?.trim() || undefined;
 
   if (!rawAllowedChats) {
     throw new Error('TelegramConfig error: TELEGRAM_ALLOWED_CHAT_IDS environment variable is required and cannot be empty. System fails closed.');
@@ -71,5 +75,6 @@ export function loadTelegramConfigFromEnv(env: Record<string, string | undefined
     botToken,
     authorizedChatIds: new Set(chatIds),
     apiBaseUrl: env.TELEGRAM_API_BASE_URL?.trim(),
+    webhookSecret,
   });
 }

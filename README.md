@@ -46,20 +46,49 @@ React components **do not** talk to the database directly, nor do they instantia
 Ranking logic is isolated in a Strategy pattern (`IRankingStrategy`) inside `RankingService`. The current implementation (`ProvisionalTrendingStrategy`) uses a simple weighted average, but the architecture explicitly accommodates future signals (growth velocity, engagement, retention, satisfaction).
 
 ### 4. Integration Architecture (Telegram)
-Telegram is modeled as a *Provider*. It is not hardcoded into the core identity of a Community. This allows us to theoretically support Discord or native messaging in the future. Integration metadata validation boundaries are enforced here.
+Telegram is modeled strictly as a *Provider*. It is not hardcoded into the core identity of a Community. This allows us to support Discord or native messaging in the future.
+
+#### Inbound Webhook Pipeline (Phase 13.2)
+```text
+Telegram Cloud (Bot API)
+        ↓ POST /api/webhooks/telegram (X-Telegram-Bot-Api-Secret-Token)
+TelegramWebhookHandler
+  ├─ Constant-time secret token verification (TELEGRAM_WEBHOOK_SECRET)
+  ├─ Runtime schema payload validation (TelegramPayloadValidator)
+  └─ In-Memory Deduplication (transient idempotency boundary)
+        ↓
+TelegramSourceAdapter (Authoritative Provider Boundary)
+  ├─ Enforces authorizedChatIds fail-closed boundary
+  ├─ Drops private /start messages
+  └─ Extracts resources & provenance
+        ↓
+ExternalCommunitySourceEvent
+        ↓
+CommunityHistoryNormalizer
+        ↓
+Discussion / DiscussionReply / DiscussionResource Read Models
+```
+
+- **Server-Side Boundary**: Inbound webhook processing runs on a Node/Express backend (`server.ts`). Secrets (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`) never enter the client or browser bundle.
+- **Fail-Closed Security**: Webhook requests missing the `X-Telegram-Bot-Api-Secret-Token` header or presenting invalid tokens return `401 Unauthorized`.
+- **Manual Webhook Setup**: Telegram `setWebhook` is an explicit CLI command (`npm run telegram:set-webhook`) and is NEVER invoked automatically on application startup or in automated tests.
+- **Persistence Boundary**: In-memory deduplication and transient normalization are used in Phase 13.2; persistent storage / queue is the future insertion point.
 
 ### 5. Development & Build
-The application is built with React 19, Vite, and Tailwind CSS v4.
+The application runs as a full-stack Node.js + Vite + React 19 architecture styled with Tailwind CSS v4.
 
 ```bash
-# Start development server
+# Start full-stack development server
 npm run dev
 
 # Build for production
 npm run build
 
-# Run unit tests
+# Run unit and integration tests
 npx vitest run
+
+# Register Telegram Webhook (explicit CLI operation)
+npm run telegram:set-webhook -- --url=https://your-public-url.run.app/api/webhooks/telegram --secret=your_webhook_secret
 ```
 
 ### 6. Current Limitations
