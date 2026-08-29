@@ -29,6 +29,8 @@ export interface UpdateStatusOptions {
   expectedOwnerToken?: string;
   /** Optional sanitized payload to update on the event */
   payload?: Record<string, unknown>;
+  /** Optional reset of retryCount (e.g. for manual operator replay) */
+  resetRetryCount?: boolean;
 }
 
 export class StaleOwnershipError extends Error {

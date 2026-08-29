@@ -1,6 +1,6 @@
 import { IIngestionEventRepository } from '../repositories/IIngestionEventRepository';
 import { ICommunityIntegrationRepository } from '../repositories/ICommunityIntegrationRepository';
-import { TelegramSecretSanitizer } from '../../infrastructure/integrations/telegram/TelegramSecretSanitizer';
+import { ISecretSanitizer, SecretSanitizer } from '../security/SecretSanitizer';
 import {
   IIngestionObservabilityService,
   IngestionHealthReport,
@@ -9,14 +9,19 @@ import {
 } from './IIngestionObservabilityService';
 
 export class IngestionObservabilityService implements IIngestionObservabilityService {
+  private readonly sanitizer: ISecretSanitizer;
+
   constructor(
     private readonly ingestionRepo: IIngestionEventRepository,
-    private readonly integrationRepo: ICommunityIntegrationRepository
-  ) {}
+    private readonly integrationRepo: ICommunityIntegrationRepository,
+    sanitizer?: ISecretSanitizer
+  ) {
+    this.sanitizer = sanitizer || new SecretSanitizer();
+  }
 
   private sanitize(str?: string): string | undefined {
     if (!str) return undefined;
-    return TelegramSecretSanitizer.sanitizeString(str);
+    return this.sanitizer.sanitizeString(str);
   }
 
   async getHealthReport(options?: { staleTimeoutMs?: number }): Promise<IngestionHealthReport> {

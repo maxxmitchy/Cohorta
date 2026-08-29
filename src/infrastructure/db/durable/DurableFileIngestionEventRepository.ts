@@ -208,6 +208,9 @@ export class DurableFileIngestionEventRepository implements IIngestionEventRepos
       if (error !== undefined) target.error = error;
       if (processedAt !== undefined) target.processedAt = processedAt;
       if (options?.payload !== undefined) target.payload = options.payload;
+      if (options?.resetRetryCount) {
+        target.retryCount = 0;
+      }
       if (status === 'processing') {
         target.retryCount = (target.retryCount || 0) + 1;
         target.lastAttemptAt = new Date();

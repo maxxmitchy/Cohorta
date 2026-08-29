@@ -183,11 +183,13 @@ export class IngestionRecoveryService implements IIngestionRecoveryService {
         };
       }
 
-      // Explicitly reset status to 'failed' with audit trail
+      // Explicitly reset status to 'failed' with audit trail and reset retry count for operator replay
       await this.ingestionRepo.updateStatus(
         target.id,
         'failed',
-        `Reopened for manual replay: ${options?.reason || 'Operator override'}`
+        `Reopened for manual replay: ${options?.reason || 'Operator override'}`,
+        undefined,
+        { resetRetryCount: true }
       );
     }
 

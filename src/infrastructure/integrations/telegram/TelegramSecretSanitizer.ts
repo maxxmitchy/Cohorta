@@ -1,12 +1,13 @@
 import { TelegramConfig } from './TelegramConfig';
 import { TelegramUpdate } from './TelegramTypes';
+import { ISecretSanitizer } from '../../../core/security/SecretSanitizer';
 
 /**
  * Defensive secret sanitizer for Telegram payloads, error strings, URLs, and headers.
  * Ensures zero credential leakage (bot tokens, webhook secrets, authorization headers, passwords)
  * into persisted storage, observability streams, or logs.
  */
-export class TelegramSecretSanitizer {
+export class TelegramSecretSanitizer implements ISecretSanitizer {
   private static readonly SECRET_KEYS = new Set([
     'bot_token',
     'bottoken',
@@ -176,5 +177,13 @@ export class TelegramSecretSanitizer {
     }
 
     return value;
+  }
+
+  sanitizeString(raw?: string, secretsToRedact?: (string | undefined)[]): string {
+    return TelegramSecretSanitizer.sanitizeString(raw || '', secretsToRedact);
+  }
+
+  sanitizeUrl(rawUrl?: string, secretsToRedact?: (string | undefined)[]): string {
+    return TelegramSecretSanitizer.sanitizeUrl(rawUrl || '', secretsToRedact);
   }
 }
