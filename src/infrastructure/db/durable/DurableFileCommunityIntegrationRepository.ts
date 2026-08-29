@@ -48,6 +48,46 @@ export class DurableFileCommunityIntegrationRepository implements ICommunityInte
     });
   }
 
+  async updateCheckpoint(
+    provider: IntegrationProviderType | string,
+    providerCommunityId: string,
+    checkpoint: string | number
+  ): Promise<void> {
+    const key = `${provider}:${providerCommunityId}`;
+    await this.storage.mutate((data) => {
+      if (data.integrations[key]) {
+        data.integrations[key].lastCheckpoint = checkpoint;
+      }
+    });
+  }
+
+  async setIntegrationActive(
+    provider: IntegrationProviderType | string,
+    providerCommunityId: string,
+    isActive: boolean
+  ): Promise<void> {
+    const key = `${provider}:${providerCommunityId}`;
+    await this.storage.mutate((data) => {
+      if (data.integrations[key]) {
+        data.integrations[key].isActive = isActive;
+      }
+    });
+  }
+
+  async deleteIntegration(
+    provider: IntegrationProviderType | string,
+    providerCommunityId: string
+  ): Promise<boolean> {
+    const key = `${provider}:${providerCommunityId}`;
+    return this.storage.mutate((data) => {
+      if (data.integrations[key]) {
+        delete data.integrations[key];
+        return true;
+      }
+      return false;
+    });
+  }
+
   async getAllIntegrations(): Promise<CommunityIntegration[]> {
     const data = await this.storage.read();
     return Object.values(data.integrations).map((i) => ({ ...i }));

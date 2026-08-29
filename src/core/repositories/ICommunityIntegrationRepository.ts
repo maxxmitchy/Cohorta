@@ -20,6 +20,32 @@ export interface ICommunityIntegrationRepository {
   saveIntegration(integration: CommunityIntegration): Promise<void>;
 
   /**
+   * Update the reconciliation checkpoint for an integration.
+   */
+  updateCheckpoint(
+    provider: IntegrationProviderType | string,
+    providerCommunityId: string,
+    checkpoint: string | number
+  ): Promise<void>;
+
+  /**
+   * Enable or disable an integration.
+   */
+  setIntegrationActive(
+    provider: IntegrationProviderType | string,
+    providerCommunityId: string,
+    isActive: boolean
+  ): Promise<void>;
+
+  /**
+   * Delete an integration.
+   */
+  deleteIntegration(
+    provider: IntegrationProviderType | string,
+    providerCommunityId: string
+  ): Promise<boolean>;
+
+  /**
    * Return all active integrations.
    */
   getAllIntegrations(): Promise<CommunityIntegration[]>;
@@ -29,3 +55,4 @@ export interface ICommunityIntegrationRepository {
    */
   clear(): Promise<void>;
 }
+

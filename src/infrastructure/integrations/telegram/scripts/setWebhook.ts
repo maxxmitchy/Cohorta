@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { HttpTelegramClient } from '../HttpTelegramClient';
 import { TelegramConfig } from '../TelegramConfig';
+import { TelegramWebhookService } from '../TelegramWebhookService';
 
 dotenv.config();
 
@@ -68,34 +69,31 @@ export async function runSetWebhook(args: string[] = process.argv.slice(2)): Pro
   };
 
   const client = new HttpTelegramClient(config);
+  const webhookService = new TelegramWebhookService(client, config);
 
   console.log(`Registering webhook with Telegram Bot API...`);
   console.log(`Target URL: ${webhookUrl}`);
   console.log(`Secret Token: [CONFIGURED - ***REDACTED***]`);
 
   try {
-    const success = await client.setWebhook({
+    const result = await webhookService.setWebhook({
       url: webhookUrl,
-      secret_token: webhookSecret,
-      drop_pending_updates: dropPending,
-      allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post'],
+      secretToken: webhookSecret,
+      dropPendingUpdates: dropPending,
+      allowedUpdates: ['message', 'edited_message', 'channel_post', 'edited_channel_post'],
     });
 
-    if (success) {
+    if (result.success) {
       console.log('Webhook successfully registered with Telegram Bot API.');
-      const info = await client.getWebhookInfo();
-      console.log(`Webhook Status: Verified (pending updates: ${info.pending_update_count})`);
+      const info = await webhookService.getWebhookInfo();
+      console.log(`Webhook Status: Verified (pending updates: ${info.pendingUpdateCount})`);
     } else {
-      console.error('Telegram Bot API returned false for setWebhook.');
+      console.error(`Telegram Bot API returned failure: ${result.message}`);
       process.exitCode = 1;
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    // Sanitize any remaining token or secret
-    const sanitized = message
-      .split(botToken).join('***REDACTED***')
-      .split(webhookSecret).join('***REDACTED***');
-    console.error(`Failed to register webhook: ${sanitized}`);
+    console.error(`Failed to register webhook: ${message}`);
     process.exitCode = 1;
   }
 }

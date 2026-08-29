@@ -1,4 +1,4 @@
-export type IngestionStatus = 'received' | 'processing' | 'processed' | 'failed';
+export type IngestionStatus = 'received' | 'processing' | 'processed' | 'failed' | 'permanently_failed';
 
 export interface IngestionEvent {
   /** Internal unique ID for this ingestion record */
@@ -21,8 +21,12 @@ export interface IngestionEvent {
   ownerToken?: string;
   /** Explicit processing state */
   status: IngestionStatus;
-  /** Detailed error message if status is 'failed' */
+  /** Detailed error message if status is 'failed' or 'permanently_failed' */
   error?: string;
   /** Number of times this event has been attempted */
   retryCount: number;
+  /** Optional sanitized source payload preserved for deterministic replay */
+  payload?: Record<string, unknown>;
+  /** Timestamp when the event was marked permanently failed */
+  permanentlyFailedAt?: Date;
 }

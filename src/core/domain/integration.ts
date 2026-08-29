@@ -14,4 +14,12 @@ export interface CommunityIntegration {
    */
   metadata: Record<string, unknown>;
   createdAt: Date;
+  /** Timestamp of the most recent successful event ingestion */
+  lastSuccessfulIngestionAt?: Date;
+  /** Timestamp of the most recent failed event ingestion attempt */
+  lastFailedIngestionAt?: Date;
+  /** Operational update/offset checkpoint for provider reconciliation */
+  lastCheckpoint?: string | number;
+  /** Most recent error message encountered during event ingestion */
+  lastProcessingError?: string;
 }

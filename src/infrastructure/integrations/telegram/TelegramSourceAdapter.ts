@@ -69,9 +69,9 @@ export class TelegramSourceAdapter {
       return null;
     }
 
-    // 2. Authorized Community Boundary: reject chats not in config.authorizedChatIds
+    // 2. Authorized Community Boundary: reject chats not in config.authorizedChatIds if configured
     const chatIdStr = String(message.chat.id);
-    if (!config.authorizedChatIds.has(chatIdStr)) {
+    if (config.authorizedChatIds && !config.authorizedChatIds.has(chatIdStr)) {
       return null;
     }
 

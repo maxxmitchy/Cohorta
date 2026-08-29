@@ -20,6 +20,8 @@ export interface CommunityEventIngestionOptions {
   multiMessageWindowMs?: number;
   /** Stale timeout in ms for in-flight processing recovery (defaults to 30s) */
   staleTimeoutMs?: number;
+  /** Max retry attempts before permanently failing an event */
+  maxRetries?: number;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface CommunityEventIngestionOptions {
  *
  * Coordinates:
  * 1. Durable provider-scoped event idempotency via atomic event claiming.
- * 2. Explicit lifecycle state transitions (received -> processing -> processed / failed).
+ * 2. Explicit lifecycle state transitions (received -> processing -> processed / failed / permanently_failed).
  * 3. Provider-to-Cohorta community mapping.
  * 4. Normalization and message lifecycle (creation, in-place edit, reply hierarchy, out-of-order reconciliation, deletion).
  * 5. Durable persistence of normalized community discussions and resources.
@@ -48,10 +50,17 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
       event.provider,
       event.externalCommunityId,
       event.externalEventId,
-      { staleTimeoutMs: this.options.staleTimeoutMs ?? 30_000 }
+      {
+        staleTimeoutMs: this.options.staleTimeoutMs ?? 30_000,
+        maxRetries: this.options.maxRetries,
+      }
     );
 
-    if (claim.outcome === 'already_processed' || claim.outcome === 'in_flight') {
+    if (
+      claim.outcome === 'already_processed' ||
+      claim.outcome === 'in_flight' ||
+      claim.outcome === 'permanently_failed'
+    ) {
       return {
         outcome: 'duplicate_ignored',
         eventKey,
@@ -99,6 +108,18 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
         { expectedOwnerToken: ingestionRecord.ownerToken }
       );
 
+      // 5. Update integration metrics if integration exists
+      try {
+        const integration = await this.integrationRepo.findByProviderCommunityId(event.provider, event.externalCommunityId);
+        if (integration) {
+          integration.lastSuccessfulIngestionAt = new Date();
+          integration.lastProcessingError = undefined;
+          await this.integrationRepo.saveIntegration(integration);
+        }
+      } catch (intErr) {
+        console.warn(`[IngestionService] Could not update integration metadata for ${event.provider}:${event.externalCommunityId}:`, intErr);
+      }
+
       return {
         outcome: 'processed',
         eventKey,
@@ -120,6 +141,18 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
       } catch (statusErr) {
         // If ownership was superseded, statusErr is expected (StaleOwnershipError)
         console.warn(`[IngestionService] Failed to set failure status for event ${ingestionRecord.id}:`, statusErr);
+      }
+
+      // Update integration error metrics if integration exists
+      try {
+        const integration = await this.integrationRepo.findByProviderCommunityId(event.provider, event.externalCommunityId);
+        if (integration) {
+          integration.lastFailedIngestionAt = new Date();
+          integration.lastProcessingError = errorMessage;
+          await this.integrationRepo.saveIntegration(integration);
+        }
+      } catch (intErr) {
+        console.warn(`[IngestionService] Could not record failure on integration for ${event.provider}:${event.externalCommunityId}:`, intErr);
       }
 
       return {
@@ -633,7 +666,10 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
 
   private async resolveCommunityId(provider: string, externalCommunityId: string): Promise<string> {
     const integration = await this.integrationRepo.findByProviderCommunityId(provider, externalCommunityId);
-    if (integration && integration.isActive) {
+    if (integration) {
+      if (!integration.isActive) {
+        throw new Error(`Community integration for ${provider}:${externalCommunityId} is disabled.`);
+      }
       return integration.communityId;
     }
 
@@ -641,7 +677,7 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
       return this.options.fallbackCommunityId;
     }
 
-    // Safe sanitized default ID
+    // Default sanitized ID when unmapped
     const sanitizedChatId = externalCommunityId.replace(/[^a-zA-Z0-9_]/g, '_');
     return `com_${provider}_${sanitizedChatId}`;
   }
