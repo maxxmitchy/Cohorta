@@ -38,15 +38,15 @@ export class TelegramSecretSanitizer {
       }
     }
 
-    // 2. Redact Telegram Bot Token patterns (e.g. 123456789:ABCdefGHIjklMNOpqrsTUVwxyz)
-    sanitized = sanitized.replace(/\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b/g, '***REDACTED_BOT_TOKEN***');
+    // 2. Redact Telegram Bot Token patterns (e.g. 123456789:ABCdefGHIjklMNOpqrsTUVwxyz or /bot123456789:...)
+    sanitized = sanitized.replace(/(?:bot)?(\d{6,12}:[A-Za-z0-9_-]{25,50})/g, '***REDACTED_BOT_TOKEN***');
 
     // 3. Redact Basic Auth passwords in URLs (e.g. https://user:pass@host)
     sanitized = sanitized.replace(/:\/\/[^:]+:([^@]+)@/g, '://***REDACTED_USER***:***REDACTED_PASS***@');
 
     // 4. Redact Bearer / Secret Token header values
     sanitized = sanitized.replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+=*/gi, '$1***REDACTED***');
-    sanitized = sanitized.replace(/(secret_token[=:]\s*)[^\s&,]+/gi, '$1***REDACTED***');
+    sanitized = sanitized.replace(/(secret(?:_token)?(?:[:=\s]+))[^\s&,]+/gi, '$1***REDACTED***');
 
     return sanitized;
   }
