@@ -70,6 +70,7 @@ export class DurableFileCommunityIntegrationRepository implements ICommunityInte
     await this.storage.mutate((data) => {
       if (data.integrations[key]) {
         data.integrations[key].isActive = isActive;
+        data.integrations[key].updatedAt = new Date();
       }
     });
   }

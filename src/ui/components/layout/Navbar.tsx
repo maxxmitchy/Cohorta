@@ -25,6 +25,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden md:flex items-center gap-6">
             <Link to="/" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">Explore</Link>
+            <Link to="/admin/integrations" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">Integrations</Link>
             {session.state === 'authenticated' && (
               <span className="text-sm font-medium text-neutral-600 hover:text-neutral-900 cursor-pointer">My Communities</span>
             )}

@@ -8,6 +8,13 @@ import { DurableFileIngestionEventRepository } from './src/infrastructure/db/dur
 import { DurableFileCommunityHistoryRepository } from './src/infrastructure/db/durable/DurableFileCommunityHistoryRepository';
 import { DurableFileCommunityIntegrationRepository } from './src/infrastructure/db/durable/DurableFileCommunityIntegrationRepository';
 import { CommunityEventIngestionService } from './src/core/services/CommunityEventIngestionService';
+import { CommunityIntegrationService } from './src/core/services/CommunityIntegrationService';
+import { IngestionObservabilityService } from './src/core/services/IngestionObservabilityService';
+import {
+  IntegrationConflictError,
+  IntegrationNotFoundError,
+  InvalidIntegrationError,
+} from './src/core/services/ICommunityIntegrationService';
 
 dotenv.config();
 
@@ -21,6 +28,8 @@ export async function createServerApp() {
   const historyRepo = new DurableFileCommunityHistoryRepository();
   const integrationRepo = new DurableFileCommunityIntegrationRepository();
   const ingestionService = new CommunityEventIngestionService(ingestionRepo, historyRepo, integrationRepo);
+  const integrationService = new CommunityIntegrationService(integrationRepo);
+  const observabilityService = new IngestionObservabilityService(ingestionRepo, integrationRepo);
 
   // API Health Check
   app.get('/api/health', (_req, res) => {
@@ -43,6 +52,119 @@ export async function createServerApp() {
       await handler.handleExpress(req, res);
     } catch {
       res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // --- ADMINISTRATIVE INTEGRATION MANAGEMENT ENDPOINTS ---
+
+  // List all integrations
+  app.get('/api/integrations', async (_req, res) => {
+    try {
+      const integrations = await integrationService.listAllIntegrations();
+      res.json({ integrations });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Overall Integration & Ingestion Health Report
+  app.get('/api/integrations/health', async (_req, res) => {
+    try {
+      const health = await observabilityService.getHealthReport();
+      res.json(health);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Create an explicit community integration mapping
+  app.post('/api/integrations', async (req, res) => {
+    try {
+      const { providerType, providerCommunityId, communityId, isActive, metadata } = req.body || {};
+      const created = await integrationService.createIntegration({
+        providerType,
+        providerCommunityId,
+        communityId,
+        isActive,
+        metadata,
+      });
+      res.status(201).json({ integration: created });
+    } catch (err: unknown) {
+      if (err instanceof InvalidIntegrationError) {
+        res.status(400).json({ error: err.message });
+      } else if (err instanceof IntegrationConflictError) {
+        res.status(409).json({ error: err.message });
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+      }
+    }
+  });
+
+  // Get a single integration by provider and external ID
+  app.get('/api/integrations/:provider/:providerCommunityId', async (req, res) => {
+    try {
+      const { provider, providerCommunityId } = req.params;
+      const integration = await integrationService.getIntegration(provider, providerCommunityId);
+      if (!integration) {
+        res.status(404).json({ error: `Integration for ${provider}:${providerCommunityId} not found.` });
+        return;
+      }
+      const health = await integrationService.getIntegrationHealth(provider, providerCommunityId);
+      res.json({ integration, health });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Enable an integration
+  app.post('/api/integrations/:provider/:providerCommunityId/enable', async (req, res) => {
+    try {
+      const { provider, providerCommunityId } = req.params;
+      const updated = await integrationService.enableIntegration(provider, providerCommunityId);
+      res.json({ integration: updated });
+    } catch (err: unknown) {
+      if (err instanceof IntegrationNotFoundError) {
+        res.status(404).json({ error: err.message });
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+      }
+    }
+  });
+
+  // Disable an integration
+  app.post('/api/integrations/:provider/:providerCommunityId/disable', async (req, res) => {
+    try {
+      const { provider, providerCommunityId } = req.params;
+      const updated = await integrationService.disableIntegration(provider, providerCommunityId);
+      res.json({ integration: updated });
+    } catch (err: unknown) {
+      if (err instanceof IntegrationNotFoundError) {
+        res.status(404).json({ error: err.message });
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+      }
+    }
+  });
+
+  // Remove an integration (disables future ingestion without destroying historical data)
+  app.delete('/api/integrations/:provider/:providerCommunityId', async (req, res) => {
+    try {
+      const { provider, providerCommunityId } = req.params;
+      const deleted = await integrationService.deactivateOrRemoveIntegration(provider, providerCommunityId);
+      if (!deleted) {
+        res.status(404).json({ error: `Integration for ${provider}:${providerCommunityId} not found.` });
+        return;
+      }
+      res.json({ success: true, message: `Integration ${provider}:${providerCommunityId} removed. Historical data preserved.` });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: message });
     }
   });
 

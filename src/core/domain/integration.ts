@@ -14,6 +14,7 @@ export interface CommunityIntegration {
    */
   metadata: Record<string, unknown>;
   createdAt: Date;
+  updatedAt?: Date;
   /** Timestamp of the most recent successful event ingestion */
   lastSuccessfulIngestionAt?: Date;
   /** Timestamp of the most recent failed event ingestion attempt */

@@ -53,6 +53,7 @@ export class MockCommunityIntegrationRepository implements ICommunityIntegration
     const existing = this.integrations.get(key);
     if (existing) {
       existing.isActive = isActive;
+      existing.updatedAt = new Date();
       this.integrations.set(key, { ...existing });
     }
   }
