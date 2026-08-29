@@ -16,14 +16,34 @@ export interface IngestionRecoverySummary {
   permanentlyFailed: number;
 }
 
+export interface ReplayEventOptions {
+  /** If true, permits manual replay of permanently_failed / dead-lettered events */
+  allowPermanentlyFailed?: boolean;
+  /** Alias for allowPermanentlyFailed */
+  forceReplayPermanentlyFailed?: boolean;
+  /** Human-readable reason or audit note for the replay action */
+  reason?: string;
+  /** Maximum retries */
+  maxRetries?: number;
+}
+
+export interface ReplayEventResult {
+  success: boolean;
+  outcome: 'processed' | 'duplicate_ignored' | 'in_flight' | 'failed' | 'permanently_failed' | 'rejected';
+  event: IngestionEvent;
+  error?: string;
+  message?: string;
+}
+
 /**
- * Service for recovering failed and stale in-flight ingestion events.
+ * Service for recovering failed, stale, and dead-lettered ingestion events.
  *
  * Requirements:
  * 1. Honors retry count ceilings and dead-letter boundaries (permanently_failed).
- * 2. Re-routes all reprocessing strictly through the canonical ICommunityEventIngestionService.
+ * 2. Re-routes all reprocessing strictly through canonical ICommunityEventIngestionService.
  * 3. Never creates duplicate discussions, replies, or history logs.
  * 4. Stale workers are fenced off via ownerToken verification.
+ * 5. Deterministic manual replay semantics for all lifecycle states.
  */
 export interface IIngestionRecoveryService {
   /**
@@ -43,11 +63,11 @@ export interface IIngestionRecoveryService {
   ): Promise<IngestionRecoverySummary>;
 
   /**
-   * Explicitly replay a single specific ingestion event by its internal ID.
+   * Explicitly and deterministically replay a single specific ingestion event by its internal ID.
    */
   replayEvent(
     eventId: string,
     eventReconstructor: (event: IngestionEvent) => Promise<ExternalCommunitySourceEvent | null>,
-    options?: { maxRetries?: number }
-  ): Promise<{ success: boolean; event: IngestionEvent; error?: string }>;
+    options?: ReplayEventOptions
+  ): Promise<ReplayEventResult>;
 }

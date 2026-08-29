@@ -6,6 +6,8 @@ import {
   IIngestionRecoveryService,
   IngestionRecoveryOptions,
   IngestionRecoverySummary,
+  ReplayEventOptions,
+  ReplayEventResult,
 } from './IIngestionRecoveryService';
 
 export class IngestionRecoveryService implements IIngestionRecoveryService {
@@ -131,8 +133,8 @@ export class IngestionRecoveryService implements IIngestionRecoveryService {
   async replayEvent(
     eventId: string,
     eventReconstructor: (event: IngestionEvent) => Promise<ExternalCommunitySourceEvent | null>,
-    options?: { maxRetries?: number }
-  ): Promise<{ success: boolean; event: IngestionEvent; error?: string }> {
+    options?: ReplayEventOptions
+  ): Promise<ReplayEventResult> {
     const allEvents = await this.ingestionRepo.getAllEvents();
     const target = allEvents.find((e) => e.id === eventId);
 
@@ -140,9 +142,63 @@ export class IngestionRecoveryService implements IIngestionRecoveryService {
       throw new Error(`IngestionEvent with id "${eventId}" not found.`);
     }
 
+    // 1. Processed state: do not create duplicates; idempotent verification
+    if (target.status === 'processed') {
+      const sourceEvent = await eventReconstructor(target);
+      if (sourceEvent) {
+        await this.ingestionService.ingestEvent(sourceEvent);
+      }
+      return {
+        success: true,
+        outcome: 'duplicate_ignored',
+        event: target,
+        message: 'Event is already processed. History preserved idempotently without duplicates.',
+      };
+    }
+
+    // 2. Active In-flight state: reject concurrent replay while within stale window
+    if (target.status === 'processing') {
+      const staleTimeoutMs = 30_000;
+      const lastAttempt = target.lastAttemptAt || target.receivedAt;
+      const elapsed = Date.now() - new Date(lastAttempt).getTime();
+      if (elapsed < staleTimeoutMs) {
+        return {
+          success: false,
+          outcome: 'in_flight',
+          event: target,
+          error: 'Event is currently actively in-flight. Cannot replay active processing.',
+        };
+      }
+    }
+
+    // 3. Permanently failed (Dead-Letter) state: require explicit audit override
+    if (target.status === 'permanently_failed') {
+      const allowOverride = options?.allowPermanentlyFailed || options?.forceReplayPermanentlyFailed;
+      if (!allowOverride) {
+        return {
+          success: false,
+          outcome: 'permanently_failed',
+          event: target,
+          error: 'Event is marked permanently_failed. Explicit override (allowPermanentlyFailed: true) is required to replay dead-lettered events.',
+        };
+      }
+
+      // Explicitly reset status to 'failed' with audit trail
+      await this.ingestionRepo.updateStatus(
+        target.id,
+        'failed',
+        `Reopened for manual replay: ${options?.reason || 'Operator override'}`
+      );
+    }
+
     const sourceEvent = await eventReconstructor(target);
     if (!sourceEvent) {
-      throw new Error(`Cannot replay event "${eventId}": unable to reconstruct source payload.`);
+      return {
+        success: false,
+        outcome: 'rejected',
+        event: target,
+        error: `Cannot replay event "${eventId}": unable to reconstruct source payload.`,
+      };
     }
 
     const result = await this.ingestionService.ingestEvent(sourceEvent);
@@ -151,6 +207,12 @@ export class IngestionRecoveryService implements IIngestionRecoveryService {
 
     return {
       success: result.outcome === 'processed',
+      outcome:
+        result.outcome === 'processed'
+          ? 'processed'
+          : result.outcome === 'duplicate_ignored'
+          ? 'duplicate_ignored'
+          : 'failed',
       event: updated,
       error: result.error,
     };

@@ -211,7 +211,17 @@ describe('Phase 13.4 Production Readiness Audit: Telegram Ingestion & Persistenc
     it('3. Failed processing records error and allows subsequent retry to succeed', async () => {
       const ingestionRepo = new MockIngestionEventRepository();
       const historyRepo = new MockCommunityHistoryRepository();
-      const integrationRepo = new MockCommunityIntegrationRepository();
+      const integrationRepo = new MockCommunityIntegrationRepository([
+        {
+          id: 'int_tg_999',
+          communityId: 'com_test_community',
+          providerType: 'telegram',
+          providerCommunityId: '-100999000',
+          isActive: true,
+          metadata: {},
+          createdAt: new Date(),
+        },
+      ]);
 
       const service = new CommunityEventIngestionService(ingestionRepo, historyRepo, integrationRepo);
 
@@ -264,6 +274,15 @@ describe('Phase 13.4 Production Readiness Audit: Telegram Ingestion & Persistenc
       const ingestionRepo1 = new DurableFileIngestionEventRepository(ingestionFile);
       const historyRepo1 = new DurableFileCommunityHistoryRepository(historyFile, false);
       const integrationRepo1 = new DurableFileCommunityIntegrationRepository(integrationFile);
+      await integrationRepo1.saveIntegration({
+        id: 'int_tg_999',
+        communityId: 'com_test_community',
+        providerType: 'telegram',
+        providerCommunityId: '-100999000',
+        isActive: true,
+        metadata: {},
+        createdAt: new Date(),
+      });
 
       // Event was claimed and in 'processing' when server process terminates abruptly
       const claim = await ingestionRepo1.claimEvent('telegram', '-100999000', 'upd_crash_1');

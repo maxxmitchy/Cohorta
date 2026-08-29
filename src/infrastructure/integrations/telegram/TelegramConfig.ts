@@ -14,7 +14,7 @@ export interface TelegramConfig {
   /** Telegram Bot API Token */
   botToken?: string;
   /** Set of authorized Telegram chat IDs permitted to enter Cohorta */
-  authorizedChatIds: Set<string>;
+  authorizedChatIds?: Set<string>;
   /** Base URL for Telegram Bot API (defaults to https://api.telegram.org) */
   apiBaseUrl?: string;
   /** Secret token used to verify inbound webhook requests from Telegram */

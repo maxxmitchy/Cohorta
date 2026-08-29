@@ -666,19 +666,17 @@ export class CommunityEventIngestionService implements ICommunityEventIngestionS
 
   private async resolveCommunityId(provider: string, externalCommunityId: string): Promise<string> {
     const integration = await this.integrationRepo.findByProviderCommunityId(provider, externalCommunityId);
-    if (integration) {
-      if (!integration.isActive) {
-        throw new Error(`Community integration for ${provider}:${externalCommunityId} is disabled.`);
+    if (!integration) {
+      if (this.options.fallbackCommunityId) {
+        return this.options.fallbackCommunityId;
       }
-      return integration.communityId;
+      throw new Error(`No active community integration found for ${provider}:${externalCommunityId}.`);
     }
 
-    if (this.options.fallbackCommunityId) {
-      return this.options.fallbackCommunityId;
+    if (!integration.isActive) {
+      throw new Error(`Community integration for ${provider}:${externalCommunityId} is disabled.`);
     }
 
-    // Default sanitized ID when unmapped
-    const sanitizedChatId = externalCommunityId.replace(/[^a-zA-Z0-9_]/g, '_');
-    return `com_${provider}_${sanitizedChatId}`;
+    return integration.communityId;
   }
 }

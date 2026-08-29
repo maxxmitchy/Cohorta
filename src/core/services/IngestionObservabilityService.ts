@@ -1,5 +1,6 @@
 import { IIngestionEventRepository } from '../repositories/IIngestionEventRepository';
 import { ICommunityIntegrationRepository } from '../repositories/ICommunityIntegrationRepository';
+import { TelegramSecretSanitizer } from '../../infrastructure/integrations/telegram/TelegramSecretSanitizer';
 import {
   IIngestionObservabilityService,
   IngestionHealthReport,
@@ -12,6 +13,11 @@ export class IngestionObservabilityService implements IIngestionObservabilitySer
     private readonly ingestionRepo: IIngestionEventRepository,
     private readonly integrationRepo: ICommunityIntegrationRepository
   ) {}
+
+  private sanitize(str?: string): string | undefined {
+    if (!str) return undefined;
+    return TelegramSecretSanitizer.sanitizeString(str);
+  }
 
   async getHealthReport(options?: { staleTimeoutMs?: number }): Promise<IngestionHealthReport> {
     const staleTimeoutMs = options?.staleTimeoutMs ?? 30_000;
@@ -52,7 +58,7 @@ export class IngestionObservabilityService implements IIngestionObservabilitySer
           lastAttemptAt: event.lastAttemptAt,
           permanentlyFailedAt: event.permanentlyFailedAt,
           retryCount: event.retryCount || 0,
-          error: event.error,
+          error: this.sanitize(event.error),
         });
       }
     }
@@ -64,12 +70,31 @@ export class IngestionObservabilityService implements IIngestionObservabilitySer
       isActive: i.isActive,
       lastSuccessfulIngestionAt: i.lastSuccessfulIngestionAt,
       lastFailedIngestionAt: i.lastFailedIngestionAt,
-      lastProcessingError: i.lastProcessingError,
+      lastProcessingError: this.sanitize(i.lastProcessingError),
       lastCheckpoint: i.lastCheckpoint,
     }));
 
+    /**
+     * Deterministic Health State Rules:
+     * - 'unhealthy':
+     *     - Any dead-letter permanently_failed events (> 0)
+     *     - Critical stale processing backlog (staleCount > 5)
+     *     - All integrations disabled when integrations exist
+     * - 'degraded':
+     *     - Any transient failed events (> 0)
+     *     - Minor stale processing count (1 <= staleCount <= 5)
+     * - 'healthy':
+     *     - 0 permanently_failed, 0 failed, 0 stale events.
+     */
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-    if (permanentlyFailedCount > 0 || staleCount > 5) {
+    const totalIntegrations = integrations.length;
+    const activeIntegrations = integrations.filter((i) => i.isActive).length;
+
+    if (
+      permanentlyFailedCount > 0 ||
+      staleCount > 5 ||
+      (totalIntegrations > 0 && activeIntegrations === 0)
+    ) {
       status = 'unhealthy';
     } else if (failedCount > 0 || staleCount > 0) {
       status = 'degraded';
@@ -83,7 +108,7 @@ export class IngestionObservabilityService implements IIngestionObservabilitySer
       staleCount,
       failedCount,
       permanentlyFailedCount,
-      activeIntegrationsCount: integrations.filter((i) => i.isActive).length,
+      activeIntegrationsCount: activeIntegrations,
       integrations: integrationSummaries,
       recentDeadLetterEvents: deadLetters.slice(0, 20),
       generatedAt: new Date(),
@@ -108,7 +133,7 @@ export class IngestionObservabilityService implements IIngestionObservabilitySer
         lastAttemptAt: e.lastAttemptAt,
         permanentlyFailedAt: e.permanentlyFailedAt,
         retryCount: e.retryCount || 0,
-        error: e.error,
+        error: this.sanitize(e.error),
       }));
 
     return deadLetters;
@@ -123,7 +148,7 @@ export class IngestionObservabilityService implements IIngestionObservabilitySer
       isActive: i.isActive,
       lastSuccessfulIngestionAt: i.lastSuccessfulIngestionAt,
       lastFailedIngestionAt: i.lastFailedIngestionAt,
-      lastProcessingError: i.lastProcessingError,
+      lastProcessingError: this.sanitize(i.lastProcessingError),
       lastCheckpoint: i.lastCheckpoint,
     }));
   }

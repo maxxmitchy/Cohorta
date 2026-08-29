@@ -1,5 +1,6 @@
 import { ITelegramClient } from './ITelegramClient';
 import { TelegramConfig } from './TelegramConfig';
+import { TelegramSecretSanitizer } from './TelegramSecretSanitizer';
 import {
   ITelegramWebhookService,
   TelegramWebhookRegistrationParams,
@@ -13,28 +14,18 @@ export class TelegramWebhookService implements ITelegramWebhookService {
   ) {}
 
   private sanitizeUrl(rawUrl: string): string {
-    try {
-      const parsed = new URL(rawUrl);
-      if (parsed.password) {
-        parsed.password = '***REDACTED***';
-      }
-      return parsed.toString();
-    } catch {
-      return rawUrl;
-    }
+    return TelegramSecretSanitizer.sanitizeUrl(rawUrl, [
+      this.config.botToken,
+      this.config.webhookSecret,
+    ]);
   }
 
   private sanitizeError(err: unknown): Error {
     const rawMessage = err instanceof Error ? err.message : String(err);
-    let sanitized = rawMessage;
-
-    if (this.config.botToken && this.config.botToken.length > 0) {
-      sanitized = sanitized.split(this.config.botToken).join('***REDACTED***');
-    }
-    if (this.config.webhookSecret && this.config.webhookSecret.length > 0) {
-      sanitized = sanitized.split(this.config.webhookSecret).join('***REDACTED***');
-    }
-
+    const sanitized = TelegramSecretSanitizer.sanitizeString(rawMessage, [
+      this.config.botToken,
+      this.config.webhookSecret,
+    ]);
     return new Error(sanitized);
   }
 
@@ -80,13 +71,20 @@ export class TelegramWebhookService implements ITelegramWebhookService {
 
     try {
       const info = await this.client.getWebhookInfo();
+      const sanitizedErrorMessage = info.last_error_message
+        ? TelegramSecretSanitizer.sanitizeString(info.last_error_message, [
+            this.config.botToken,
+            this.config.webhookSecret,
+          ])
+        : undefined;
+
       return {
         isConfigured: !!info.url && info.url.length > 0,
         url: info.url ? this.sanitizeUrl(info.url) : undefined,
         hasCustomCertificate: info.has_custom_certificate ?? false,
         pendingUpdateCount: info.pending_update_count ?? 0,
         lastErrorDate: info.last_error_date ? new Date(info.last_error_date * 1000) : undefined,
-        lastErrorMessage: info.last_error_message,
+        lastErrorMessage: sanitizedErrorMessage,
         maxConnections: info.max_connections,
         allowedUpdates: info.allowed_updates,
       };
