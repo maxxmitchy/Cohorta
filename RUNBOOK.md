@@ -78,3 +78,22 @@ To verify readiness safely (expect `NOT READY` if unconfigured):
 ```bash
 npm run telegram:readiness
 ```
+
+## J. Live Activation Checklist
+1. Deploy Cohorta with persistent storage.
+2. Configure server-side Telegram environment variables.
+3. Run telegram:readiness.
+4. Confirm readiness succeeds.
+5. Run telegram:set-webhook.
+6. Run telegram:webhook-info.
+7. Send a controlled test message from an authorized Telegram community.
+8. Verify ingestion.
+9. Verify exactly one discussion.
+10. Verify reply handling.
+11. Verify edit handling.
+12. Verify persistence after restart.
+13. Verify reconciliation does not duplicate the event.
+14. Verify unauthorized community behavior.
+15. Verify disabled integration behavior.
+16. Inspect observability.
+17. Record the result.
