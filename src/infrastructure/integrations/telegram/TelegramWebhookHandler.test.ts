@@ -358,6 +358,9 @@ describe('TelegramWebhookHandler (Phase 13.2 Webhook Ingestion Boundary)', () =>
       delete process.env.TELEGRAM_BOT_TOKEN;
       delete process.env.TELEGRAM_WEBHOOK_URL;
       delete process.env.TELEGRAM_WEBHOOK_SECRET;
+      // Provide valid chat ID so canonical validation passes for that rule,
+      // and we hit the bot token missing error.
+      process.env.TELEGRAM_ALLOWED_CHAT_IDS = '12345';
 
       await runSetWebhook([]);
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('TELEGRAM_BOT_TOKEN is required'));
