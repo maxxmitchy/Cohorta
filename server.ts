@@ -36,6 +36,7 @@ export interface ServerAppDependencies {
 
 export async function createServerApp(deps?: ServerAppDependencies) {
   const app = express();
+  app.set('trust proxy', 1);
 
   app.use(express.json());
 
