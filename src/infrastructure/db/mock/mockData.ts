@@ -8,6 +8,14 @@ import { User } from '../../../core/domain/user';
 
 export const mockUsers: User[] = [
   {
+    id: 'u_admin',
+    email: 'admin@example.com',
+    name: 'Adam Admin',
+    avatarUrl: 'https://i.pravatar.cc/150?u=admin',
+    role: 'admin',
+    createdAt: new Date(),
+  },
+  {
     id: 'u1',
     email: 'sarah@example.com',
     name: 'Sarah AI',

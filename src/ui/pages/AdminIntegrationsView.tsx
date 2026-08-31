@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Radio, RefreshCw, Plus, CheckCircle, AlertTriangle, ShieldCheck, XCircle } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Radio, RefreshCw, Plus, CheckCircle, AlertTriangle, ShieldCheck, XCircle, ShieldAlert, Lock, UserCheck } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { mockUsers } from '../../infrastructure/db/mock/mockData';
 
 interface IntegrationSummary {
   id: string;
@@ -28,6 +30,7 @@ interface IngestionHealthReport {
 }
 
 export function AdminIntegrationsView() {
+  const { session, setDevUser } = useAuth();
   const [integrations, setIntegrations] = useState<IntegrationSummary[]>([]);
   const [health, setHealth] = useState<IngestionHealthReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -41,47 +44,75 @@ export function AdminIntegrationsView() {
   const [communityId, setCommunityId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchIntegrationsAndHealth = async () => {
+  const fetchIntegrationsAndHealth = useCallback(async () => {
+    if (session.state !== 'authenticated' || !session.user) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const [integrationsRes, healthRes] = await Promise.all([
-        fetch('/api/integrations'),
-        fetch('/api/integrations/health'),
-      ]);
+      const authHeaders: HeadersInit = {
+        Authorization: `Bearer ${session.user.id}`,
+      };
+
+      const integrationsRes = await fetch('/api/integrations', {
+        headers: authHeaders,
+      });
 
       if (!integrationsRes.ok) {
-        throw new Error(`Failed to load integrations (HTTP ${integrationsRes.status})`);
-      }
-      if (!healthRes.ok) {
-        throw new Error(`Failed to load health report (HTTP ${healthRes.status})`);
+        const errData = await integrationsRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to load integrations (HTTP ${integrationsRes.status})`);
       }
 
       const integrationsData = await integrationsRes.json();
-      const healthData = await healthRes.json();
-
       setIntegrations(integrationsData.integrations || []);
-      setHealth(healthData);
+
+      // If user is admin, fetch operational telemetry report
+      if (session.user.role === 'admin') {
+        const healthRes = await fetch('/api/integrations/health', {
+          headers: authHeaders,
+        });
+        if (healthRes.ok) {
+          const healthData = await healthRes.json();
+          setHealth(healthData);
+        }
+      } else {
+        setHealth(null);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [session]);
 
   useEffect(() => {
     fetchIntegrationsAndHealth();
-  }, []);
+  }, [fetchIntegrationsAndHealth]);
 
   const handleToggleActive = async (integration: IntegrationSummary) => {
+    if (session.state !== 'authenticated' || !session.user) {
+      setError('You must be signed in to perform this action.');
+      return;
+    }
+
     try {
       setActionMessage(null);
+      setError(null);
       const action = integration.isActive ? 'disable' : 'enable';
-      const res = await fetch(`/api/integrations/${integration.providerType}/${encodeURIComponent(integration.providerCommunityId)}/${action}`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `/api/integrations/${integration.providerType}/${encodeURIComponent(integration.providerCommunityId)}/${action}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.user.id}`,
+          },
+        }
+      );
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -98,6 +129,11 @@ export function AdminIntegrationsView() {
 
   const handleCreateIntegration = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (session.state !== 'authenticated' || !session.user) {
+      setError('You must be signed in to create an integration.');
+      return;
+    }
+
     if (!providerCommunityId.trim() || !communityId.trim()) {
       setError('Both External Chat ID and Cohorta Community ID are required.');
       return;
@@ -110,7 +146,10 @@ export function AdminIntegrationsView() {
 
       const res = await fetch('/api/integrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.user.id}`,
+        },
         body: JSON.stringify({
           providerType,
           providerCommunityId: providerCommunityId.trim(),
@@ -137,6 +176,110 @@ export function AdminIntegrationsView() {
     }
   };
 
+  // 1. Unauthenticated View (401 UI Equivalent)
+  if (session.state === 'unauthenticated' || !session.user) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center space-y-6">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
+          <Lock className="h-8 w-8" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Authentication Required</h1>
+          <p className="text-sm text-neutral-500 max-w-md mx-auto">
+            You must be signed in with an administrative or community creator account to access Community Integration controls.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-neutral-200 bg-white p-6 text-left shadow-sm space-y-4">
+          <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+            Development Sign-In
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {mockUsers.filter((u) => u.role === 'admin').map((user) => (
+              <button
+                key={user.id}
+                onClick={() => setDevUser(user.id)}
+                className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 hover:border-neutral-900 bg-neutral-50 hover:bg-white text-left transition-colors"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-neutral-900">{user.name}</div>
+                  <div className="text-xs text-neutral-500">{user.email}</div>
+                </div>
+                <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Admin</span>
+              </button>
+            ))}
+            {mockUsers.filter((u) => u.role === 'creator').slice(0, 2).map((user) => (
+              <button
+                key={user.id}
+                onClick={() => setDevUser(user.id)}
+                className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 hover:border-neutral-900 bg-neutral-50 hover:bg-white text-left transition-colors"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-neutral-900">{user.name}</div>
+                  <div className="text-xs text-neutral-500">{user.email}</div>
+                </div>
+                <span className="text-[10px] uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Creator</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthorized View (403 UI Equivalent for learners/mentors)
+  const isAuthorized = session.user.role === 'admin' || session.user.role === 'creator';
+  if (!isAuthorized) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center space-y-6">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-600 border border-red-200">
+          <ShieldAlert className="h-8 w-8" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Access Denied (403)</h1>
+          <p className="text-sm text-neutral-500 max-w-md mx-auto">
+            Your account <span className="font-semibold text-neutral-800">({session.user.name})</span> has the role <span className="font-mono text-xs bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-700">{session.user.role}</span>. Administrative integration management is restricted to platform operators and community creators.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-neutral-200 bg-white p-6 text-left shadow-sm space-y-4">
+          <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+            Switch to Authorized Operator / Creator
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {mockUsers.filter((u) => u.role === 'admin').map((user) => (
+              <button
+                key={user.id}
+                onClick={() => setDevUser(user.id)}
+                className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 hover:border-neutral-900 bg-neutral-50 hover:bg-white text-left transition-colors"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-neutral-900">{user.name}</div>
+                  <div className="text-xs text-neutral-500">{user.email}</div>
+                </div>
+                <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Admin</span>
+              </button>
+            ))}
+            {mockUsers.filter((u) => u.role === 'creator').slice(0, 2).map((user) => (
+              <button
+                key={user.id}
+                onClick={() => setDevUser(user.id)}
+                className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 hover:border-neutral-900 bg-neutral-50 hover:bg-white text-left transition-colors"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-neutral-900">{user.name}</div>
+                  <div className="text-xs text-neutral-500">{user.email}</div>
+                </div>
+                <span className="text-[10px] uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Creator</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Authorized View (Admin / Creator)
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
       {/* Header */}
@@ -149,6 +292,14 @@ export function AdminIntegrationsView() {
           <p className="mt-1 text-sm text-neutral-500">
             Authoritative bindings between external channels and Cohorta communities.
           </p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-neutral-500">
+            <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+            <span>
+              Signed in as <strong className="text-neutral-800">{session.user.name}</strong> (
+              <span className="uppercase font-semibold text-xs tracking-wider text-indigo-600">{session.user.role}</span>
+              )
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -236,7 +387,7 @@ export function AdminIntegrationsView() {
                 type="text"
                 value={communityId}
                 onChange={(e) => setCommunityId(e.target.value)}
-                placeholder="c_ai_systems"
+                placeholder="com_1"
                 required
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-800 placeholder-neutral-400 focus:outline-none"
               />
@@ -262,8 +413,8 @@ export function AdminIntegrationsView() {
         </form>
       )}
 
-      {/* Operational Health Overview */}
-      {health && (
+      {/* Operational Health Overview (Admin Only) */}
+      {health && session.user.role === 'admin' && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div className="rounded-xl border border-neutral-200 bg-white p-4">
             <div className="text-xs font-medium text-neutral-500">Pipeline Status</div>

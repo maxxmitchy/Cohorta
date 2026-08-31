@@ -7,9 +7,17 @@ import { loadTelegramConfigFromEnv } from './src/infrastructure/integrations/tel
 import { DurableFileIngestionEventRepository } from './src/infrastructure/db/durable/DurableFileIngestionEventRepository';
 import { DurableFileCommunityHistoryRepository } from './src/infrastructure/db/durable/DurableFileCommunityHistoryRepository';
 import { DurableFileCommunityIntegrationRepository } from './src/infrastructure/db/durable/DurableFileCommunityIntegrationRepository';
+import { MockUserRepository } from './src/infrastructure/db/mock/MockUserRepository';
+import { MockCommunityRepository } from './src/infrastructure/db/mock/MockCommunityRepository';
 import { CommunityEventIngestionService } from './src/core/services/CommunityEventIngestionService';
 import { CommunityIntegrationService } from './src/core/services/CommunityIntegrationService';
 import { IngestionObservabilityService } from './src/core/services/IngestionObservabilityService';
+import { AuthorizationService } from './src/core/security/AuthorizationService';
+import { ICommunityIntegrationRepository } from './src/core/repositories/ICommunityIntegrationRepository';
+import { IIngestionEventRepository } from './src/core/repositories/IIngestionEventRepository';
+import { ICommunityHistoryRepository } from './src/core/repositories/ICommunityHistoryRepository';
+import { IUserRepository } from './src/core/repositories/IUserRepository';
+import { ICommunityRepository } from './src/core/repositories/ICommunityRepository';
 import {
   IntegrationConflictError,
   IntegrationNotFoundError,
@@ -18,18 +26,30 @@ import {
 
 dotenv.config();
 
-export async function createServerApp() {
+export interface ServerAppDependencies {
+  ingestionRepo?: IIngestionEventRepository;
+  historyRepo?: ICommunityHistoryRepository;
+  integrationRepo?: ICommunityIntegrationRepository;
+  userRepo?: IUserRepository;
+  communityRepo?: ICommunityRepository;
+}
+
+export async function createServerApp(deps?: ServerAppDependencies) {
   const app = express();
 
   app.use(express.json());
 
-  // Composition Root: Durable Storage & Ingestion Pipeline
-  const ingestionRepo = new DurableFileIngestionEventRepository();
-  const historyRepo = new DurableFileCommunityHistoryRepository();
-  const integrationRepo = new DurableFileCommunityIntegrationRepository();
+  // Composition Root: Durable Storage, Identity, & Ingestion Pipeline
+  const ingestionRepo = deps?.ingestionRepo || new DurableFileIngestionEventRepository();
+  const historyRepo = deps?.historyRepo || new DurableFileCommunityHistoryRepository();
+  const integrationRepo = deps?.integrationRepo || new DurableFileCommunityIntegrationRepository();
+  const userRepo = deps?.userRepo || new MockUserRepository();
+  const communityRepo = deps?.communityRepo || new MockCommunityRepository();
+
   const ingestionService = new CommunityEventIngestionService(ingestionRepo, historyRepo, integrationRepo);
-  const integrationService = new CommunityIntegrationService(integrationRepo);
+  const integrationService = new CommunityIntegrationService(integrationRepo, communityRepo);
   const observabilityService = new IngestionObservabilityService(ingestionRepo, integrationRepo);
+  const authzService = new AuthorizationService(userRepo, communityRepo);
 
   // API Health Check
   app.get('/api/health', (_req, res) => {
@@ -37,6 +57,7 @@ export async function createServerApp() {
   });
 
   // Telegram Inbound Webhook Endpoint
+  // Authenticates Telegram delivery via secret token; does NOT grant administrative privileges
   app.post('/api/webhooks/telegram', async (req, res) => {
     try {
       let config;
@@ -57,11 +78,31 @@ export async function createServerApp() {
 
   // --- ADMINISTRATIVE INTEGRATION MANAGEMENT ENDPOINTS ---
 
-  // List all integrations
-  app.get('/api/integrations', async (_req, res) => {
+  // List integrations
+  // Requires valid authentication. Admins view all integrations; creators view their owned community integrations.
+  app.get('/api/integrations', async (req, res) => {
     try {
-      const integrations = await integrationService.listAllIntegrations();
-      res.json({ integrations });
+      const identity = await authzService.authenticateRequest(req.headers.authorization);
+      if (!identity) {
+        res.status(401).json({ error: 'Unauthorized: Authentication required.' });
+        return;
+      }
+
+      if (authzService.canManageAllIntegrations(identity)) {
+        const integrations = await integrationService.listAllIntegrations();
+        res.json({ integrations });
+        return;
+      }
+
+      if (identity.user.role === 'creator') {
+        const allCommunities = await communityRepo.getAllCommunities();
+        const owned = allCommunities.filter((c) => c.creatorId === identity.user.id);
+        const nested = await Promise.all(owned.map((c) => integrationService.listIntegrationsForCommunity(c.id)));
+        res.json({ integrations: nested.flat() });
+        return;
+      }
+
+      res.status(403).json({ error: 'Forbidden: Insufficient permissions to view integrations.' });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       res.status(500).json({ error: message });
@@ -69,8 +110,20 @@ export async function createServerApp() {
   });
 
   // Overall Integration & Ingestion Health Report
-  app.get('/api/integrations/health', async (_req, res) => {
+  // Requires administrator authority
+  app.get('/api/integrations/health', async (req, res) => {
     try {
+      const identity = await authzService.authenticateRequest(req.headers.authorization);
+      if (!identity) {
+        res.status(401).json({ error: 'Unauthorized: Authentication required.' });
+        return;
+      }
+
+      if (!authzService.canViewOperationalHealth(identity)) {
+        res.status(403).json({ error: 'Forbidden: Insufficient permissions to view operational health.' });
+        return;
+      }
+
       const health = await observabilityService.getHealthReport();
       res.json(health);
     } catch (err: unknown) {
@@ -80,13 +133,33 @@ export async function createServerApp() {
   });
 
   // Create an explicit community integration mapping
+  // Requires authentication and community management authorization (admin or community owner)
   app.post('/api/integrations', async (req, res) => {
     try {
+      const identity = await authzService.authenticateRequest(req.headers.authorization);
+      if (!identity) {
+        res.status(401).json({ error: 'Unauthorized: Authentication required.' });
+        return;
+      }
+
       const { providerType, providerCommunityId, communityId, isActive, metadata } = req.body || {};
+
+      const rawCommunityId = typeof communityId === 'string' ? communityId.trim() : '';
+      if (!rawCommunityId) {
+        res.status(400).json({ error: 'communityId must be provided.' });
+        return;
+      }
+
+      const isAllowed = await authzService.canManageCommunity(identity, rawCommunityId);
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Forbidden: You are not authorized to manage integrations for this community.' });
+        return;
+      }
+
       const created = await integrationService.createIntegration({
         providerType,
         providerCommunityId,
-        communityId,
+        communityId: rawCommunityId,
         isActive,
         metadata,
       });
@@ -106,12 +179,25 @@ export async function createServerApp() {
   // Get a single integration by provider and external ID
   app.get('/api/integrations/:provider/:providerCommunityId', async (req, res) => {
     try {
+      const identity = await authzService.authenticateRequest(req.headers.authorization);
+      if (!identity) {
+        res.status(401).json({ error: 'Unauthorized: Authentication required.' });
+        return;
+      }
+
       const { provider, providerCommunityId } = req.params;
       const integration = await integrationService.getIntegration(provider, providerCommunityId);
       if (!integration) {
         res.status(404).json({ error: `Integration for ${provider}:${providerCommunityId} not found.` });
         return;
       }
+
+      const isAllowed = await authzService.canManageCommunity(identity, integration.communityId);
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Forbidden: You are not authorized to view this community integration.' });
+        return;
+      }
+
       const health = await integrationService.getIntegrationHealth(provider, providerCommunityId);
       res.json({ integration, health });
     } catch (err: unknown) {
@@ -123,7 +209,25 @@ export async function createServerApp() {
   // Enable an integration
   app.post('/api/integrations/:provider/:providerCommunityId/enable', async (req, res) => {
     try {
+      const identity = await authzService.authenticateRequest(req.headers.authorization);
+      if (!identity) {
+        res.status(401).json({ error: 'Unauthorized: Authentication required.' });
+        return;
+      }
+
       const { provider, providerCommunityId } = req.params;
+      const integration = await integrationService.getIntegration(provider, providerCommunityId);
+      if (!integration) {
+        res.status(404).json({ error: `Integration for ${provider}:${providerCommunityId} not found.` });
+        return;
+      }
+
+      const isAllowed = await authzService.canManageCommunity(identity, integration.communityId);
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Forbidden: You are not authorized to modify this community integration.' });
+        return;
+      }
+
       const updated = await integrationService.enableIntegration(provider, providerCommunityId);
       res.json({ integration: updated });
     } catch (err: unknown) {
@@ -139,7 +243,25 @@ export async function createServerApp() {
   // Disable an integration
   app.post('/api/integrations/:provider/:providerCommunityId/disable', async (req, res) => {
     try {
+      const identity = await authzService.authenticateRequest(req.headers.authorization);
+      if (!identity) {
+        res.status(401).json({ error: 'Unauthorized: Authentication required.' });
+        return;
+      }
+
       const { provider, providerCommunityId } = req.params;
+      const integration = await integrationService.getIntegration(provider, providerCommunityId);
+      if (!integration) {
+        res.status(404).json({ error: `Integration for ${provider}:${providerCommunityId} not found.` });
+        return;
+      }
+
+      const isAllowed = await authzService.canManageCommunity(identity, integration.communityId);
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Forbidden: You are not authorized to modify this community integration.' });
+        return;
+      }
+
       const updated = await integrationService.disableIntegration(provider, providerCommunityId);
       res.json({ integration: updated });
     } catch (err: unknown) {
@@ -155,7 +277,25 @@ export async function createServerApp() {
   // Remove an integration (disables future ingestion without destroying historical data)
   app.delete('/api/integrations/:provider/:providerCommunityId', async (req, res) => {
     try {
+      const identity = await authzService.authenticateRequest(req.headers.authorization);
+      if (!identity) {
+        res.status(401).json({ error: 'Unauthorized: Authentication required.' });
+        return;
+      }
+
       const { provider, providerCommunityId } = req.params;
+      const integration = await integrationService.getIntegration(provider, providerCommunityId);
+      if (!integration) {
+        res.status(404).json({ error: `Integration for ${provider}:${providerCommunityId} not found.` });
+        return;
+      }
+
+      const isAllowed = await authzService.canManageCommunity(identity, integration.communityId);
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Forbidden: You are not authorized to delete this community integration.' });
+        return;
+      }
+
       const deleted = await integrationService.deactivateOrRemoveIntegration(provider, providerCommunityId);
       if (!deleted) {
         res.status(404).json({ error: `Integration for ${provider}:${providerCommunityId} not found.` });

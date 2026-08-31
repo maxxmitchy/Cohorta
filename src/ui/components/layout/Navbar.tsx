@@ -25,7 +25,9 @@ export default function Navbar() {
           </Link>
           <div className="hidden md:flex items-center gap-6">
             <Link to="/" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">Explore</Link>
-            <Link to="/admin/integrations" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">Integrations</Link>
+            {session.state === 'authenticated' && (session.user?.role === 'admin' || session.user?.role === 'creator') && (
+              <Link to="/admin/integrations" id="nav-link-integrations" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">Integrations</Link>
+            )}
             {session.state === 'authenticated' && (
               <span className="text-sm font-medium text-neutral-600 hover:text-neutral-900 cursor-pointer">My Communities</span>
             )}
@@ -59,17 +61,47 @@ export default function Navbar() {
                 </div>
                 <button 
                   onClick={() => handleSwitchUser(null)}
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                  className="w-full rounded-lg px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
                 >
                   Unauthenticated (Visitor)
                 </button>
+                <div className="my-1 px-3 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                  Admin & Operators
+                </div>
+                {mockUsers.filter(u => u.role === 'admin').map(user => (
+                  <button 
+                    key={user.id}
+                    onClick={() => handleSwitchUser(user.id)}
+                    className="w-full rounded-lg px-3 py-1.5 text-left text-xs font-medium text-neutral-900 hover:bg-neutral-50 flex items-center justify-between"
+                  >
+                    <span>{user.name}</span>
+                    <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">Admin</span>
+                  </button>
+                ))}
+                <div className="my-1 px-3 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                  Community Creators
+                </div>
+                {mockUsers.filter(u => u.role === 'creator').map(user => (
+                  <button 
+                    key={user.id}
+                    onClick={() => handleSwitchUser(user.id)}
+                    className="w-full rounded-lg px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50 flex items-center justify-between"
+                  >
+                    <span>{user.name}</span>
+                    <span className="text-[10px] uppercase text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Creator</span>
+                  </button>
+                ))}
+                <div className="my-1 px-3 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                  Learners
+                </div>
                 {mockUsers.filter(u => u.role === 'learner').map(user => (
                   <button 
                     key={user.id}
                     onClick={() => handleSwitchUser(user.id)}
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                    className="w-full rounded-lg px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50 flex items-center justify-between"
                   >
-                    {user.name} ({user.id.replace('u_member_', '').replace('u_visitor', 'visitor')})
+                    <span>{user.name}</span>
+                    <span className="text-[10px] uppercase text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded">Learner</span>
                   </button>
                 ))}
               </div>

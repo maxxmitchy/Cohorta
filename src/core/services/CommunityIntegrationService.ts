@@ -1,5 +1,6 @@
 import { CommunityIntegration, IntegrationProviderType } from '../domain/integration';
 import { ICommunityIntegrationRepository } from '../repositories/ICommunityIntegrationRepository';
+import { ICommunityRepository } from '../repositories/ICommunityRepository';
 import { ISecretSanitizer, SecretSanitizer } from '../security/SecretSanitizer';
 import {
   ICommunityIntegrationService,
@@ -15,50 +16,79 @@ export class CommunityIntegrationService implements ICommunityIntegrationService
 
   constructor(
     private readonly integrationRepo: ICommunityIntegrationRepository,
+    private readonly communityRepo?: ICommunityRepository,
     sanitizer?: ISecretSanitizer
   ) {
     this.sanitizer = sanitizer || new SecretSanitizer();
   }
 
   async createIntegration(params: CreateIntegrationParams): Promise<CommunityIntegration> {
-    const provider = params.providerType?.trim() as IntegrationProviderType;
-    const providerCommunityId = params.providerCommunityId?.trim();
-    const communityId = params.communityId?.trim();
+    const rawProvider = typeof params.providerType === 'string' ? params.providerType.trim() : '';
+    const rawProviderCommunityId = typeof params.providerCommunityId === 'string' ? params.providerCommunityId.trim() : '';
+    const rawCommunityId = typeof params.communityId === 'string' ? params.communityId.trim() : '';
 
-    if (!provider || !['telegram', 'discord', 'slack', 'native'].includes(provider)) {
+    if (!rawProvider || !['telegram', 'discord', 'slack', 'native'].includes(rawProvider)) {
       throw new InvalidIntegrationError(`Invalid or unsupported provider type: '${params.providerType}'`);
     }
+    const provider = rawProvider as IntegrationProviderType;
 
-    if (!providerCommunityId) {
+    if (!rawProviderCommunityId) {
       throw new InvalidIntegrationError('providerCommunityId (e.g. external chat ID) must be provided.');
     }
 
-    if (!communityId) {
+    if (rawProviderCommunityId.length > 128) {
+      throw new InvalidIntegrationError('providerCommunityId cannot exceed 128 characters.');
+    }
+
+    // Reject control characters
+    // eslint-disable-next-line no-control-regex
+    if (/[\x00-\x1F\x7F]/.test(rawProviderCommunityId)) {
+      throw new InvalidIntegrationError('providerCommunityId contains invalid control characters.');
+    }
+
+    if (!rawCommunityId) {
       throw new InvalidIntegrationError('communityId must be provided.');
     }
 
+    if (rawCommunityId.length > 128) {
+      throw new InvalidIntegrationError('communityId cannot exceed 128 characters.');
+    }
+
+    // eslint-disable-next-line no-control-regex
+    if (/[\x00-\x1F\x7F]/.test(rawCommunityId)) {
+      throw new InvalidIntegrationError('communityId contains invalid control characters.');
+    }
+
+    // Validate that the Cohorta community actually exists if communityRepo is provided
+    if (this.communityRepo) {
+      const community = await this.communityRepo.getCommunityById(rawCommunityId);
+      if (!community) {
+        throw new InvalidIntegrationError(`Cohorta community '${rawCommunityId}' does not exist.`);
+      }
+    }
+
     // Enforce 1:1 uniqueness invariant
-    const existing = await this.integrationRepo.findByProviderCommunityId(provider, providerCommunityId);
+    const existing = await this.integrationRepo.findByProviderCommunityId(provider, rawProviderCommunityId);
     if (existing) {
-      if (existing.communityId !== communityId) {
+      if (existing.communityId !== rawCommunityId) {
         throw new IntegrationConflictError(
-          `External community ${provider}:${providerCommunityId} is already mapped to Cohorta community '${existing.communityId}'. Cannot remap to '${communityId}'.`
+          `External community ${provider}:${rawProviderCommunityId} is already mapped to Cohorta community '${existing.communityId}'. Cannot remap to '${rawCommunityId}'.`
         );
       }
       throw new IntegrationConflictError(
-        `An integration for ${provider}:${providerCommunityId} already exists on community '${communityId}'.`
+        `An integration for ${provider}:${rawProviderCommunityId} already exists on community '${rawCommunityId}'.`
       );
     }
 
-    const sanitizedProviderId = providerCommunityId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sanitizedProviderId = rawProviderCommunityId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const id = `int_${provider}_${sanitizedProviderId}`;
     const now = new Date();
 
     const newIntegration: CommunityIntegration = {
       id,
-      communityId,
+      communityId: rawCommunityId,
       providerType: provider,
-      providerCommunityId,
+      providerCommunityId: rawProviderCommunityId,
       isActive: params.isActive !== undefined ? params.isActive : true,
       metadata: params.metadata ? { ...params.metadata } : {},
       createdAt: now,
