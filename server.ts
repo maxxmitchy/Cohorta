@@ -73,7 +73,7 @@ export async function createServerApp(deps?: ServerAppDependencies) {
       const handler = new TelegramWebhookHandler(config, ingestionService);
       await handler.handleExpress(req, res);
     } catch (err) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      console.error('500 Error processing webhook:', err); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
