@@ -156,7 +156,7 @@ export class TelegramWebhookHandler {
           event,
         };
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = err instanceof Error ? err.message : String(err); console.error("Caught webhook error:", err);
         return {
           statusCode: 500,
           body: { error: 'Internal Server Error', reason: message },
@@ -204,7 +204,7 @@ export class TelegramWebhookHandler {
       const result = await this.processWebhook(req.headers, req.body);
       res.status(result.statusCode).json(result.body);
     } catch {
-      res.status(500).json({ error: 'Internal Server Error' });
+      console.error("TopLevel500:", err); res.status(500).json({ error: 'Internal Server Error' });
     }
   }
 
