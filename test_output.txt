@@ -1,0 +1,73 @@
+
+> react-example@0.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/app/applet[39m
+
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramProductionLifecycle.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 267[2mms[22m[39m
+[90mstderr[2m | src/infrastructure/integrations/telegram/TelegramRestartIntegrity.test.ts[2m > [22m[2mPhase 13.6.1 — Adversarial Production Verification & Restart Integrity[2m > [22m[2m12. DurableFileStorage Failure Injection[2m > [22m[2misolates mutation errors, prevents queue poisoning, and falls back gracefully on corrupt data
+[22m[39m[DurableFileStorage] Read error on /tmp/telegram-adversarial-pym5fW/failure_test.json, falling back to default: SyntaxError: Unexpected token 'I', "INVALID JS"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at DurableFileStorage.readDirectly [90m(/app/applet/[39msrc/infrastructure/db/durable/DurableFileStorage.ts:86:27[90m)[39m
+    at [90m/app/applet/[39msrc/infrastructure/integrations/telegram/TelegramRestartIntegrity.test.ts:1240:28
+    at [90mfile:///app/applet/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20
+
+[90mstderr[2m | src/infrastructure/integrations/telegram/TelegramRestartIntegrity.test.ts[2m > [22m[2mPhase 13.6.1 — Adversarial Production Verification & Restart Integrity[2m > [22m[2m12. DurableFileStorage Failure Injection[2m > [22m[2misolates mutation errors, prevents queue poisoning, and falls back gracefully on corrupt data
+[22m[39m[DurableFileStorage] Read error on /tmp/telegram-adversarial-pym5fW/failure_test.json, falling back to default: SyntaxError: Unexpected token 'I', "INVALID JS"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at DurableFileStorage.readDirectly [90m(/app/applet/[39msrc/infrastructure/db/durable/DurableFileStorage.ts:86:27[90m)[39m
+    at executeMutation [90m(/app/applet/[39msrc/infrastructure/db/durable/DurableFileStorage.ts:49:20[90m)[39m
+
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramRestartIntegrity.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 1224[2mms[22m[39m
+       [33m[2m✓[22m[39m processes 100 concurrent events across 3 communities with overlapping message IDs without tenant leakage [33m 833[2mms[22m[39m
+[90mstderr[2m | src/infrastructure/integrations/telegram/TelegramIngestionProductionReadiness.test.ts[2m > [22m[2mPhase 13.4 Production Readiness Audit: Telegram Ingestion & Persistence Integrity[2m > [22m[2m14 & 15. Durable Storage Corruption & Write Queue Recovery[2m > [22m[2m14. Malformed/empty JSON file gracefully falls back to default factory without unhandled crashes
+[22m[39m[DurableFileStorage] Read error on /tmp/cohorta-audit-xsqOaV/corrupt.json, falling back to default: SyntaxError: Unterminated string in JSON at position 27 (line 1 column 28)
+    at JSON.parse (<anonymous>)
+    at DurableFileStorage.readDirectly [90m(/app/applet/[39msrc/infrastructure/db/durable/DurableFileStorage.ts:86:27[90m)[39m
+    at [90m/app/applet/[39msrc/infrastructure/integrations/telegram/TelegramIngestionProductionReadiness.test.ts:718:24
+    at [90mfile:///app/applet/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20
+
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramIngestionProductionReadiness.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 406[2mms[22m[39m
+ [32m✓[39m src/core/source/CommunityHistoryNormalizer.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramCommunityIntegrationLifecycle.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 176[2mms[22m[39m
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramOperationalReconciliationAudit.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+[90mstdout[2m | src/infrastructure/security/AdministrativeAuthorization.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+ [32m✓[39m src/infrastructure/security/AdministrativeAuthorization.test.ts [2m([22m[2m32 tests[22m[2m)[22m[33m 340[2mms[22m[39m
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramSourceAdapter.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramOperationalLifecycle.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/core/services/CatchUpService.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 67[2mms[22m[39m
+ [32m✓[39m src/core/evidence/DiscussionEvidenceAnalyzer.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+[90mstdout[2m | src/infrastructure/integrations/telegram/TelegramWebhookHandler.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramWebhookHandler.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m src/core/services/CommunityEventIngestionService.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/core/services/MembershipService.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+[90mstdout[2m | src/infrastructure/integrations/telegram/scripts/readinessCheck.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+ [32m✓[39m src/infrastructure/integrations/telegram/scripts/readinessCheck.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m src/core/services/CommunityHistoryService.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/infrastructure/integrations/telegram/TelegramPayloadValidator.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/infrastructure/db/durable/DurablePersistence.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/infrastructure/db/mock/pricingHelper.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+[90mstdout[2m | src/infrastructure/integrations/telegram/scripts/setWebhook.test.ts
+[22m[39m◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+
+ [32m✓[39m src/infrastructure/integrations/telegram/scripts/setWebhook.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/core/services/RankingService.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/core/services/CommunityDetailService.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/core/services/DiscoveryService.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/infrastructure/db/mock/MockMembershipRepository.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1225[2mms[22m[39m
+     [33m[2m✓[22m[39m resolves member progress correctly for partial progress [33m 416[2mms[22m[39m
+     [33m[2m✓[22m[39m returns null for an unauthenticated or non-member user [33m 402[2mms[22m[39m
+     [33m[2m✓[22m[39m returns null for an expired membership [33m 402[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m24 passed[39m[22m[90m (24)[39m
+[2m      Tests [22m [1m[32m312 passed[39m[22m[90m (312)[39m
+[2m   Start at [22m 21:53:10
+[2m   Duration [22m 15.15s[2m (transform 1.30s, setup 0ms, import 2.98s, tests 4.15s, environment 3ms)[22m
+

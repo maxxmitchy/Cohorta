@@ -64,15 +64,15 @@ export async function createServerApp(deps?: ServerAppDependencies) {
       let config;
       try {
         config = loadTelegramConfigFromEnv(process.env);
-      } catch {
+      } catch (err) {
         // Fail closed if Telegram environment configuration is incomplete or missing
-        res.status(401).json({ error: 'Unauthorized' });
+        console.error('Config load failed:', err); res.status(401).json({ error: 'Unauthorized' });
         return;
       }
 
       const handler = new TelegramWebhookHandler(config, ingestionService);
       await handler.handleExpress(req, res);
-    } catch {
+    } catch (err) {
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });

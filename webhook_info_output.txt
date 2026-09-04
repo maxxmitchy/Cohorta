@@ -1,0 +1,9 @@
+
+> react-example@0.0.0 telegram:webhook-info
+> tsx src/infrastructure/integrations/telegram/scripts/webhookInfo.ts
+
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+Inspecting webhook status with Telegram Bot API...
+
+--- Webhook Status ---
+Is Configured: No

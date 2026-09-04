@@ -1,0 +1,16 @@
+
+> react-example@0.0.0 telegram:readiness
+> tsx src/infrastructure/integrations/telegram/scripts/readinessCheck.ts
+
+◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+--- Telegram Operational Readiness Check ---
+
+[OK] TELEGRAM_BOT_TOKEN: Configured (***REDACTED***)
+[OK] TELEGRAM_WEBHOOK_SECRET: Configured (***REDACTED***)
+[OK] TELEGRAM_ALLOWED_CHAT_IDS: 1 chat IDs configured structurally valid
+[OK] TELEGRAM_WEBHOOK_URL: Configured (origin: https://cohortar.ai.studio)
+
+--- Status ---
+Configuration readiness: READY
+Live Telegram connectivity: NOT TESTED
+Webhook registration: NOT TESTED

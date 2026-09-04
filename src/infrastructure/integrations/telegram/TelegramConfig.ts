@@ -56,7 +56,10 @@ export function validateTelegramConfig(config: Partial<TelegramConfig>): Telegra
 export function loadTelegramConfigFromEnv(env: Record<string, string | undefined> = process.env): TelegramConfig {
   const botToken = env.TELEGRAM_BOT_TOKEN?.trim() || undefined;
   const rawAllowedChats = env.TELEGRAM_ALLOWED_CHAT_IDS?.trim();
-  const webhookSecret = env.TELEGRAM_WEBHOOK_SECRET?.trim() || undefined;
+  let webhookSecret = env.TELEGRAM_WEBHOOK_SECRET?.trim() || undefined;
+  if (webhookSecret) {
+    webhookSecret = webhookSecret.replace(/\+/g, "-").replace(/=/g, "");
+  }
 
   if (!rawAllowedChats) {
     throw new Error('TelegramConfig error: TELEGRAM_ALLOWED_CHAT_IDS environment variable is required and cannot be empty. System fails closed.');
