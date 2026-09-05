@@ -204,7 +204,7 @@ export class TelegramWebhookHandler {
       const result = await this.processWebhook(req.headers, req.body);
       res.status(result.statusCode).json(result.body);
     } catch {
-      console.error("TopLevel500:", err); res.status(500).json({ error: 'Internal Server Error' });
+      console.error("TopLevel500"); res.status(500).json({ error: 'Internal Server Error' });
     }
   }
 

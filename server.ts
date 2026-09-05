@@ -36,6 +36,10 @@ export interface ServerAppDependencies {
 
 export async function createServerApp(deps?: ServerAppDependencies) {
   const app = express();
+
+  if (process.env.STORAGE_ADAPTER === 'firestore') {
+    throw new Error('STORAGE_ADAPTER=firestore is configured, but Firestore repository implementations are not yet available.');
+  }
   app.set('trust proxy', 1);
 
   app.use(express.json());
